@@ -1,3 +1,5 @@
+// TODO[workflow-adt-migration]: replace REPO_ROOT/.agent/workflow.json reads with framework-owned fixture (mirror agents/common/step-registry/_fixtures/ pattern).
+
 /**
  * Tests for agents/orchestrator/workflow-loader.ts
  *
@@ -20,6 +22,8 @@ const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 function validConfig(): Record<string, unknown> {
   return {
     version: "1.0.0",
+    // T1.1: required IssueSource ADT (12-workflow-config.md §C)
+    issueSource: { kind: "ghRepoIssues", projectMembership: "unbound" },
     phases: {
       implementation: { type: "actionable", priority: 1, agent: "iterator" },
       review: { type: "actionable", priority: 2, agent: "reviewer" },
@@ -88,6 +92,126 @@ Deno.test("workflow-loader: missing workflow.json throws", async () => {
       Error,
     );
     assertStringIncludes(err.message, "not found");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// IssueSource ADT (T1.1, design 12-workflow-config.md §C)
+// =============================================================================
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-001 — missing issueSource rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    delete (cfg as Record<string, unknown>).issueSource;
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-001");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-002 — unknown kind rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = { kind: "ghMystery" };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-002");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-003 — ghProject without project field rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = { kind: "ghProject" };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-003");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-004 — explicit with empty issueIds rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "explicit",
+      issueIds: [],
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-004");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-005 — invalid projectMembership rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "ghRepoIssues",
+      projectMembership: "invalid-mode",
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-005");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: ghProject variant loads with full ProjectRef", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "ghProject",
+      project: { owner: "tettuan", number: 42 },
+      labels: ["kind:impl"],
+      state: "open",
+      limit: 30,
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.issueSource.kind, "ghProject");
+    if (config.issueSource.kind === "ghProject") {
+      assertEquals(config.issueSource.project, {
+        owner: "tettuan",
+        number: 42,
+      });
+      assertEquals(config.issueSource.labels, ["kind:impl"]);
+    }
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: explicit variant loads with non-empty issueIds", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "explicit",
+      issueIds: [11, 22, 33],
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.issueSource.kind, "explicit");
+    if (config.issueSource.kind === "explicit") {
+      assertEquals(config.issueSource.issueIds, [11, 22, 33]);
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -334,10 +458,10 @@ Deno.test("workflow-loader: labelPrefix field is parsed", async () => {
 });
 
 // =============================================================================
-// Cross-reference: closeCondition validation
+// Cross-reference: closeBinding.condition validation (T6.2)
 // =============================================================================
 
-Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF-005", async () => {
+Deno.test("workflow-loader: closeBinding.condition without active primary throws WF-REF-005", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -345,7 +469,13 @@ Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeCondition: "approved", // no closeOnComplete
+      // primary=none + condition is the post-T6.2 equivalent of the
+      // legacy "closeCondition without closeOnComplete" misconfiguration.
+      closeBinding: {
+        primary: { kind: "none" },
+        cascade: false,
+        condition: "approved",
+      },
     };
     await writeFixture(dir, cfg);
     const err = await assertRejects(
@@ -359,15 +489,15 @@ Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF
     );
     assertStringIncludes(
       err.message,
-      "closeOnComplete",
-      "Error should mention closeOnComplete. Fix: config-errors.ts WF-REF-005",
+      "closeBinding",
+      "Error should mention closeBinding. Fix: config-errors.ts WF-REF-005",
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-REF-006", async () => {
+Deno.test("workflow-loader: closeBinding.condition with unknown outcome key throws WF-REF-006", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -375,8 +505,11 @@ Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-RE
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
-      closeCondition: "typo_approved", // not in outputPhases
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+        condition: "typo_approved", // not in outputPhases
+      },
     };
     await writeFixture(dir, cfg);
     const err = await assertRejects(
@@ -391,14 +524,14 @@ Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-RE
     assertStringIncludes(
       err.message,
       "typo_approved",
-      "Error should include the invalid closeCondition value. Fix: config-errors.ts WF-REF-006",
+      "Error should include the invalid closeBinding.condition value. Fix: config-errors.ts WF-REF-006",
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: valid closeOnComplete and closeCondition loads successfully", async () => {
+Deno.test("workflow-loader: valid closeBinding with condition loads successfully", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -406,19 +539,28 @@ Deno.test("workflow-loader: valid closeOnComplete and closeCondition loads succe
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
-      closeCondition: "approved",
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+        condition: "approved",
+      },
     };
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
-    assertEquals(config.agents["reviewer"].closeOnComplete, true);
-    assertEquals(config.agents["reviewer"].closeCondition, "approved");
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.primary.kind,
+      "direct",
+    );
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.condition,
+      "approved",
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: closeOnComplete without closeCondition loads successfully", async () => {
+Deno.test("workflow-loader: closeBinding without condition loads successfully", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -426,12 +568,21 @@ Deno.test("workflow-loader: closeOnComplete without closeCondition loads success
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+      },
     };
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
-    assertEquals(config.agents["reviewer"].closeOnComplete, true);
-    assertEquals(config.agents["reviewer"].closeCondition, undefined);
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.primary.kind,
+      "direct",
+    );
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.condition,
+      undefined,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -631,7 +782,10 @@ Deno.test(
 
 /** Extend validConfig() with a `labels` section. */
 function configWithLabels(
-  labels: Record<string, { color: string; description: string }>,
+  labels: Record<
+    string,
+    { color: string; description: string; role?: "routing" | "marker" }
+  >,
 ): Record<string, unknown> {
   const cfg = validConfig();
   cfg.labels = labels;
@@ -720,6 +874,59 @@ Deno.test("workflow-loader: WF-LABEL-004 — orphan spec not referenced anywhere
   }
 });
 
+Deno.test("workflow-loader: WF-LABEL-004 — marker role bypasses orphan check", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // A marker label is declared (so it gets synced to GitHub and code can
+    // safely probe for it via labels.includes(...)), but it is NOT routed
+    // via labelMapping or prioritizer.labels. The orphan check must permit
+    // this because the marker role is the declarative escape hatch for
+    // identification-only labels (e.g., project-sentinel).
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      "meta:sentinel": {
+        color: "e6e6e6",
+        description: "identification-only marker",
+        role: "marker",
+      },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.labels?.["meta:sentinel"]?.role, "marker");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-004 — explicit role='routing' still triggers orphan check", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Guard rail: a label with role='routing' (the default, stated
+    // explicitly here) must still participate in orphan detection.
+    // Only role='marker' is exempt — marker must be opt-in, not implicit.
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      "legacy:unused": {
+        color: "cccccc",
+        description: "declared but not routed",
+        role: "routing",
+      },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-004");
+    assertStringIncludes(err.message, "legacy:unused");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("workflow-loader: WF-LABEL-005 — invalid color (non-hex) fails", async () => {
   const dir = await Deno.makeTempDir();
   try {
@@ -794,3 +1001,380 @@ Deno.test("workflow-loader: uppercase hex colors accepted", async () => {
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// =============================================================================
+// WF-PROJECT: projectBinding cross-references (T6.eval trigger)
+//
+// These conformance tests pin the contract that the orchestrator and the
+// workflow share: every identifier the T6.eval block consumes must be
+// declared in the workflow (phases, labelMapping, labels) so the code
+// never needs to fabricate a phase or label name. Each failure mode is
+// verified via its WF-PROJECT-00N error code — the same codes the
+// orchestrator comments reference at runtime.
+// =============================================================================
+
+/**
+ * Returns a config that, on its own, would load — then the caller adds a
+ * projectBinding that triggers the specific WF-PROJECT check under test.
+ * The helper adds a labels section with a declared marker sentinel so the
+ * default sentinel-role check passes; individual tests override as needed.
+ */
+function projectBindingConfig(
+  extraLabels: Record<
+    string,
+    { color: string; description: string; role?: "routing" | "marker" }
+  > = {},
+): Record<string, unknown> {
+  const cfg = validConfig();
+  cfg.labels = {
+    ready: { color: "a2eeef", description: "ready" },
+    review: { color: "fbca04", description: "review" },
+    done: { color: "0e8a16", description: "done" },
+    blocked: { color: "d93f0b", description: "blocked" },
+    "project-sentinel": {
+      color: "e6e6e6",
+      description: "sentinel",
+      role: "marker",
+    },
+    ...extraLabels,
+  };
+  return cfg;
+}
+
+Deno.test(
+  "workflow-loader: WF-PROJECT — valid projectBinding loads successfully",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const config = await loadWorkflow(dir);
+      assertEquals(
+        config.projectBinding?.donePhase,
+        "complete",
+        "projectBinding must be copied through to the loaded config so " +
+          "the orchestrator can read it (previous loader dropped it).",
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-001 — donePhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "nonexistent-phase",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-001");
+      assertStringIncludes(err.message, "nonexistent-phase");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-002 — donePhase must be terminal",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "review", // actionable, not terminal
+        evalPhase: "review",
+        planPhase: "review",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-002");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-003 — evalPhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "nonexistent-phase",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-003");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-004 — evalPhase must be actionable",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "complete", // terminal, not actionable
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-004");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-006 — evalPhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<
+          string,
+          { type: string; priority?: number; agent?: string }
+        >;
+        labelMapping: Record<string, string>;
+        labels?: Record<string, { color: string; description: string }>;
+        agents: Record<string, unknown>;
+      };
+      // Add an actionable phase that has an agent but no labelMapping entry.
+      cfg.phases["eval-orphan"] = {
+        type: "actionable",
+        priority: 3,
+        agent: "reviewer",
+      };
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "eval-orphan",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-006");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-007 — donePhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<string, { type: string; priority?: number }>;
+        labelMapping: Record<string, string>;
+      };
+      // Drop the only labelMapping entry that targets `complete`.
+      delete cfg.labelMapping["done"];
+      // Add another terminal phase to keep labelMapping.complete references sane.
+      cfg.phases["done-orphan"] = { type: "terminal" };
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "done-orphan",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      // labels section validator will also flag missing `done` spec; drop the
+      // labels section entirely so validateLabelsSection is bypassed and the
+      // WF-PROJECT-007 path is the one exercised.
+      delete (cfg as { labels?: unknown }).labels;
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-007");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-008 — sentinelLabel not declared in labels",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "not-declared-anywhere",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-008");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-009 — sentinelLabel must have role=marker",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      // Declare sentinel but as a routing label (the orphan check would
+      // then flag it, so also reference it from labelMapping to isolate
+      // the WF-PROJECT-009 path).
+      const cfg = projectBindingConfig({
+        "wrong-role-sentinel": {
+          color: "cccccc",
+          description: "wrong role",
+          role: "routing",
+        },
+      }) as Record<string, unknown> & {
+        labelMapping: Record<string, string>;
+      };
+      cfg.labelMapping["wrong-role-sentinel"] = "blocked";
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "wrong-role-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-009");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-010 — planPhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "nonexistent-phase",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-010");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-011 — planPhase must be actionable",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "complete", // terminal, not actionable
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-011");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-013 — planPhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<
+          string,
+          { type: string; priority?: number; agent?: string }
+        >;
+      };
+      cfg.phases["plan-orphan"] = {
+        type: "actionable",
+        priority: 3,
+        agent: "reviewer",
+      };
+      cfg.projectBinding = {
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "plan-orphan",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-013");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT — absent projectBinding loads successfully (I1)",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      // No projectBinding at all — cross-ref check must short-circuit.
+      // This pins Invariant I1 (design/13_project_orchestration.md §3).
+      await writeFixture(dir, validConfig());
+      const config = await loadWorkflow(dir);
+      assertEquals(
+        config.projectBinding,
+        undefined,
+        "Loader must preserve projectBinding=undefined when absent so the " +
+          "orchestrator's I1 guard stays bitwise-equivalent to v1.13.x.",
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);

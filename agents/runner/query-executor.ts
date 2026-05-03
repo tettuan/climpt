@@ -19,14 +19,14 @@ import type {
 import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
 import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
-import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
+import {
+  calculateBackoff,
+  isRateLimitError,
+  parseResetTime,
+} from "./error-classifier.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type {
-  PromptStepDefinition,
-  StepKind,
-} from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import type { Step, StepKind } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   getToolPolicy,
@@ -50,9 +50,11 @@ import {
 import type { VerboseLogger } from "./verbose-logger.ts";
 import { AGENT_LIMITS, TRUNCATION } from "../shared/constants.ts";
 import type { SchemaManager } from "./schema-manager.ts";
+import type { LoadedAgentSettings } from "../config/settings-loader.ts";
 
 export interface QueryExecutorDeps {
   readonly definition: AgentDefinition;
+  readonly settings: LoadedAgentSettings;
   getContext(): RuntimeContext;
   getStepsRegistry(): ExtendedStepsRegistry | null;
   getVerboseLogger(): VerboseLogger | null;
@@ -104,29 +106,31 @@ export class QueryExecutor {
         "@anthropic-ai/claude-agent-sdk"
       );
 
-      // Apply stepKind-based tool gating if we have step info
+      // Apply kind-based tool gating if we have step info
       // Append GitHubRead MCP tool when GitHub integration is enabled.
       const githubEnabled =
         this.deps.definition.runner.integrations?.github?.enabled !== false;
       let allowedTools = [
-        ...this.deps.definition.runner.boundaries.allowedTools,
+        ...extractAllowedToolNames(
+          this.deps.settings.settings.permissions?.allow ?? [],
+        ),
         ...(githubEnabled ? [GITHUB_READ_TOOL_NAME] : []),
       ];
-      let currentStepKind: StepKind | undefined;
+      let currentKind: StepKind | undefined;
       let stepPermissionMode: PermissionMode | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
 
       if (stepId && stepsRegistry) {
         const stepDef = stepsRegistry.steps[stepId] as
-          | PromptStepDefinition
+          | Step
           | undefined;
         if (stepDef) {
-          currentStepKind = inferStepKind(stepDef);
+          currentKind = stepDef.kind;
           stepPermissionMode = stepDef.permissionMode;
-          if (currentStepKind) {
-            allowedTools = filterAllowedTools(allowedTools, currentStepKind);
+          if (currentKind) {
+            allowedTools = filterAllowedTools(allowedTools, currentKind);
             ctx.logger.info(
-              `[ToolPolicy] Step "${stepId}" (${currentStepKind}): tools filtered to ${allowedTools.length} allowed`,
+              `[ToolPolicy] Step "${stepId}" (${currentKind}): tools filtered to ${allowedTools.length} allowed`,
             );
           }
         }
@@ -138,10 +142,13 @@ export class QueryExecutor {
         allowedTools,
         permissionMode: resolvePermissionMode(
           stepPermissionMode,
-          currentStepKind,
-          this.deps.definition.runner.boundaries.permissionMode,
+          currentKind,
+          narrowAgentPermissionMode(
+            this.deps.settings.settings.permissions?.defaultMode,
+          ),
         ),
-        settingSources: ["user", "project"],
+        settingSources: ["project"],
+        settings: this.deps.settings.settings,
         plugins,
         resume: sessionId,
         // Auto-respond to AskUserQuestion to enable autonomous execution
@@ -149,11 +156,8 @@ export class QueryExecutor {
           toolName: string,
           input: Record<string, unknown>,
         ) => {
-          // Enforce allowedTools boundary
-          if (
-            allowedTools.length > 0 &&
-            !allowedTools.includes(toolName)
-          ) {
+          // Enforce allowedTools boundary (Plan Z: empty list = deny-all)
+          if (!allowedTools.includes(toolName)) {
             return {
               behavior: "deny",
               message: `Tool "${toolName}" not in allowedTools`,
@@ -199,16 +203,18 @@ export class QueryExecutor {
       };
 
       const effectiveMode = queryOptions.permissionMode as string;
-      const agentMode = this.deps.definition.runner.boundaries.permissionMode;
+      const agentMode = narrowAgentPermissionMode(
+        this.deps.settings.settings.permissions?.defaultMode,
+      );
       if (effectiveMode !== agentMode) {
         ctx.logger.info(
           `[ToolPolicy] Step "${stepId}" permissionMode: ${effectiveMode} (agent-level: ${agentMode})`,
         );
       }
 
-      // Configure sandbox
+      // Configure sandbox (runner.boundaries is now optional on the blueprint)
       const sandboxConfig = mergeSandboxConfig(
-        this.deps.definition.runner.boundaries.sandbox,
+        this.deps.definition.runner.boundaries?.sandbox,
       );
       if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;
@@ -249,9 +255,9 @@ export class QueryExecutor {
       }
 
       // Configure PreToolUse hooks for boundary bash blocking
-      if (currentStepKind && getToolPolicy(currentStepKind).blockBoundaryBash) {
+      if (currentKind && getToolPolicy(currentKind).blockBoundaryBash) {
         const boundaryBashBlockingHook = this.createBoundaryBashBlockingHook(
-          currentStepKind,
+          currentKind,
           ctx,
         );
         queryOptions.hooks = {
@@ -263,7 +269,7 @@ export class QueryExecutor {
           ],
         };
         ctx.logger.info(
-          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (stepKind: ${currentStepKind})`,
+          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (kind: ${currentKind})`,
         );
       }
 
@@ -385,10 +391,32 @@ export class QueryExecutor {
         this.rateLimitRetryCount++;
 
         if (this.rateLimitRetryCount >= QueryExecutor.MAX_RATE_LIMIT_RETRIES) {
+          // Synthesize a RateLimitInfo so the orchestrator's Step 7c hook
+          // can wait until reset even when no SDK rate_limit_event was
+          // streamed before the actual 429. Priority: explicit
+          // "resets <H>am|pm" parsed from the error message → most-recent
+          // SDK event already on the summary → undefined (orchestrator
+          // treats it as a regular failure).
+          const parsedResetsAt = parseResetTime(errorMessage);
+          let rateLimitInfo = summary.rateLimitInfo;
+          if (parsedResetsAt !== null) {
+            rateLimitInfo = {
+              utilization: 1,
+              resetsAt: parsedResetsAt,
+              rateLimitType: "claude_code_message",
+            };
+          } else if (rateLimitInfo !== undefined) {
+            rateLimitInfo = { ...rateLimitInfo, utilization: 1 };
+          }
+          if (rateLimitInfo !== undefined) {
+            summary.rateLimitInfo = rateLimitInfo;
+          }
+
           const rateLimitError = new AgentRateLimitError(
             `Rate limit exceeded after ${this.rateLimitRetryCount} retries`,
             {
               attempts: this.rateLimitRetryCount,
+              ...(rateLimitInfo && { rateLimitInfo }),
               cause: error instanceof Error ? error : undefined,
               iteration,
             },
@@ -397,6 +425,7 @@ export class QueryExecutor {
           ctx.logger.error("Rate limit retries exhausted", {
             error: rateLimitError.message,
             attempts: this.rateLimitRetryCount,
+            rateLimitInfo,
           });
           throw rateLimitError;
         }
@@ -516,14 +545,14 @@ export class QueryExecutor {
    * Delegates to the module-level function.
    */
   private createBoundaryBashBlockingHook(
-    stepKind: StepKind,
+    kind: StepKind,
     ctx: RuntimeContext,
   ): (
     input: { tool_name: string; tool_input: Record<string, unknown> },
     toolUseId: string | undefined,
     options: { signal: AbortSignal },
   ) => Promise<Record<string, unknown>> {
-    return createBoundaryBashBlockingHook(stepKind, ctx);
+    return createBoundaryBashBlockingHook(kind, ctx);
   }
 }
 
@@ -610,7 +639,7 @@ export function tryParseJsonFromText(
  * @internal Exported for testing. Used by QueryExecutor.createBoundaryBashBlockingHook.
  */
 export function createBoundaryBashBlockingHook(
-  stepKind: StepKind,
+  kind: StepKind,
   ctx: RuntimeContext,
 ): (
   input: { tool_name: string; tool_input: Record<string, unknown> },
@@ -629,11 +658,11 @@ export function createBoundaryBashBlockingHook(
     }
 
     // Check if command is allowed for this step kind
-    const result = isBashCommandAllowed(command, stepKind);
+    const result = isBashCommandAllowed(command, kind);
 
     if (!result.allowed) {
       ctx.logger.warn(
-        `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
+        `[ToolPolicy] Boundary bash command blocked in ${kind} step`,
         {
           command: command.substring(0, TRUNCATION.BASH_COMMAND),
           reason: result.reason,
@@ -651,4 +680,52 @@ export function createBoundaryBashBlockingHook(
 
     return Promise.resolve({});
   };
+}
+
+/**
+ * Narrow the SDK-declared `Settings.permissions.defaultMode` (which includes
+ * `"dontAsk"`) down to the {@link PermissionMode} subset this agent runtime
+ * enforces. Unknown / missing values collapse to `"default"`.
+ *
+ * Plan Z does not model `"dontAsk"`; if a settings file ever declares it the
+ * loader accepts it (it is valid per SDK schema) but the runner treats it as
+ * the safe `"default"` baseline rather than silently promoting to a more
+ * permissive mode.
+ *
+ * @internal Exported for testing.
+ */
+export function narrowAgentPermissionMode(
+  mode: string | undefined,
+): PermissionMode {
+  switch (mode) {
+    case "default":
+    case "plan":
+    case "acceptEdits":
+    case "bypassPermissions":
+      return mode;
+    default:
+      return "default";
+  }
+}
+
+/**
+ * Strip SDK rule syntax (e.g. `"Bash(git:*)"`) down to the bare tool name
+ * (`"Bash"`) so it can be compared against `canUseTool.toolName`, which the
+ * SDK always invokes with the bare tool identifier.
+ *
+ * Bare entries (no parenthesis) pass through unchanged. Duplicates are
+ * collapsed via Set so a rule like `["Bash(git:*)", "Bash(npm:*)"]` yields
+ * a single `"Bash"` in the returned list.
+ *
+ * @internal Exported for testing.
+ */
+export function extractAllowedToolNames(
+  rules: readonly string[],
+): string[] {
+  const out = new Set<string>();
+  for (const r of rules) {
+    const paren = r.indexOf("(");
+    out.add(paren < 0 ? r : r.slice(0, paren));
+  }
+  return [...out];
 }

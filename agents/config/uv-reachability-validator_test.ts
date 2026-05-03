@@ -290,8 +290,8 @@ Deno.test("validateUvReachability - empty uvVariables -> valid (skipped)", () =>
 Deno.test("validateUvReachability - missing uvVariables key -> valid (skipped)", () => {
   // Use a non-initial prefix to avoid prefix substitution warnings
   const registry = registryWith("step.issue", {
-    c2: "step",
-    c3: "issue",
+    kind: "work",
+    address: { c1: "steps", c2: "step", c3: "issue" },
   });
   const agent = agentWith({});
 

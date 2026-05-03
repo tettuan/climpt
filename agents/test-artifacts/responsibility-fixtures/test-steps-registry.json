@@ -3,9 +3,15 @@
   "version": "3.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "poll:state": "initial.test",
-    "count:iteration": "initial.test",
-    "detect:graph": "initial.test"
+    "poll:state": { "initial": "initial.test", "continuation": "initial.test" },
+    "count:iteration": {
+      "initial": "initial.test",
+      "continuation": "initial.test"
+    },
+    "detect:graph": {
+      "initial": "initial.test",
+      "continuation": "initial.test"
+    }
   },
   "failurePatterns": {
     "git-dirty": {
@@ -20,6 +26,7 @@
   "validators": {
     "always-pass": {
       "type": "command",
+      "phase": "postllm",
       "command": "echo ok",
       "successWhen": "exitCode:0",
       "failurePattern": "git-dirty",
@@ -32,7 +39,8 @@
       "name": "Test Validation",
       "c2": "retry",
       "c3": "test",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "always-pass"
         }
@@ -47,7 +55,8 @@
       "name": "External State Validation",
       "c2": "retry",
       "c3": "polling",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "always-pass"
         }
@@ -62,10 +71,13 @@
     "initial.test": {
       "stepId": "initial.test",
       "name": "Test Initial Step",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "test",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
@@ -92,10 +104,13 @@
     "continuation.test": {
       "stepId": "continuation.test",
       "name": "Test Continuation Step",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "test",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
@@ -126,10 +141,13 @@
     "closure.test": {
       "stepId": "closure.test",
       "name": "Test Closure Step",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "test",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {

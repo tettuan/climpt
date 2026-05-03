@@ -22,19 +22,8 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 1
+        "maxIterations": 5
       }
-    },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task",
-        "WebFetch"
-      ],
-      "permissionMode": "bypassPermissions"
     },
     "integrations": {
       "github": {
@@ -45,8 +34,7 @@
             "add": [],
             "remove": []
           }
-        },
-        "defaultClosureAction": "label-only"
+        }
       }
     },
     "logging": {

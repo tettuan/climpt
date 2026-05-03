@@ -10,6 +10,8 @@
  * @module
  */
 
+import { type Decision, decisionFromSchema } from "../shared/validation/mod.ts";
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -313,4 +315,30 @@ export function validateRegistrySchema(
   const defs = schema.definitions ?? {};
   const errors = validateValue(data, schema, "", defs);
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Decision-shaped sibling of {@link validateAgentSchema}.
+ *
+ * Tagged with **A2** (agent.json structural validity per design 13 §G).
+ * Each schema error's path is preserved in `context.path`.
+ */
+export function validateAgentSchemaAsDecision(
+  data: unknown,
+): Decision<void> {
+  const result = validateAgentSchema(data);
+  return decisionFromSchema(result, "A2", "agent.json");
+}
+
+/**
+ * Decision-shaped sibling of {@link validateRegistrySchema}.
+ *
+ * Tagged with **S4** (steps_registry.json schema validity per design
+ * 14 §G). Each schema error's path is preserved in `context.path`.
+ */
+export function validateRegistrySchemaAsDecision(
+  data: unknown,
+): Decision<void> {
+  const result = validateRegistrySchema(data);
+  return decisionFromSchema(result, "S4", "steps_registry.json");
 }

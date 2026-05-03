@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "clarifier.schema.json",
+  "description": "Clarifier agent step schemas. Two-step linear flow: scan-iterator-failure (work) → clarify (closure). Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration.",
+
+  "closure.clarify.scan-iterator-failure": {
+    "type": "object",
+    "description": "Work-step output schema for closure.clarify.scan-iterator-failure. Read-only scan of the latest issue comment carrying the iterator-failure anchor. Emits handoff (advance to closure clarify step) or repeat. Per StepKind boundary rules, work→closure transitions use the 'handoff' intent.",
+    "required": ["next_action", "iterator_failure_context"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["handoff", "repeat"]
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "iterator_failure_context": {
+        "type": ["object", "null"],
+        "description": "Parsed payload from the latest comment whose first line is the anchor `<!-- iterator-failure-v1 -->`. Null when no such comment exists (first clarify on this issue, or iterator never failed). Mirrors iterator's iterator_last_failure shape.",
+        "additionalProperties": false,
+        "required": ["pattern", "evidence_summary"],
+        "properties": {
+          "pattern": { "type": "string", "minLength": 1 },
+          "evidence_summary": { "type": "string", "minLength": 1 },
+          "missing_acs": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "kind_boundary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["violations"],
+            "properties": {
+              "violations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "reason"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "reason": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "closure.clarify": {
+    "type": "object",
+    "description": "Clarify closure response — inspect a need-clearance issue, apply the 5-gate rubric, emit verdict and rationale. The orchestrator transitions the phase; this agent never touches labels or issue state.",
+    "required": ["stepId", "status", "summary", "next_action", "verdict", "rationale"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "clarify"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["completed", "failed"]
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line human-readable summary of the clarify outcome."
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing"],
+            "description": "Closure intent. Always 'closing' for single-iteration clarifier."
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["ready-to-impl", "ready-to-consider"],
+        "description": "Routing verdict. 'ready-to-impl' → impl-pending (iterator). 'ready-to-consider' → consider-pending (considerer). When any rubric gate fails, route to 'ready-to-consider' and record the failing gate + what would unblock in the comment — considerer absorbs ambiguity. No self-loop back to blocked."
+      },
+      "rationale": {
+        "type": "object",
+        "description": "Gate-by-gate breakdown. Each entry MUST name the gate and whether it passed. Gate failure does not block routing — considerer receives the issue and decides handoff.",
+        "required": ["gates"],
+        "properties": {
+          "gates": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": ["gate", "pass", "note"],
+              "additionalProperties": false,
+              "properties": {
+                "gate": {
+                  "type": "string",
+                  "enum": ["alignment", "state-machine", "scope", "acceptance", "dependency"]
+                },
+                "pass": { "type": "boolean" },
+                "note": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      },
+      "final_summary": {
+        "type": "string",
+        "description": "One-paragraph recap of the verdict reasoning. Used as commentTemplates variable on handoff."
+      }
+    }
+  }
+}

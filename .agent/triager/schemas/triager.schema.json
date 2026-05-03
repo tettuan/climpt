@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "triager.schema.json",
+  "description": "Triager agent step schemas. Per-issue dispatch model: one closure step (stepKind='closure') classifies a single issue (assigning exactly one kind:* label) and emits a closing signal whose structured output drives the poll:state boundary hook to apply the label via gh issue edit. closure_action='label-only' keeps the issue open so the prioritizer can pick it up. order:N is NOT assigned by triager — that is the prioritizer's role. The orchestrator never sees triager verdicts — triager is dispatched out-of-band via .agent/triager/script/dispatch.sh.",
+
+  "triage": {
+    "type": "object",
+    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into exactly one of kind:impl|kind:detail|kind:consider|kind:plan (workflow.json#labelMapping). The boundary hook merges issue.labels.add (one kind:* label) with the agent.json github.labels.completion config and applies it via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
+    "required": ["stepId", "status", "summary", "next_action", "issue"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "triage"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["completed", "failed"]
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line human-readable recap (e.g., 'classified #488 as kind:consider')."
+      },
+      "verdict": {
+        "type": "string",
+        "description": "Optional verdict tag captured by the adapter via getLastVerdict(). Free-form."
+      },
+      "closure_action": {
+        "type": "string",
+        "enum": ["label-only", "label-and-close", "close"],
+        "description": "Optional override for the boundary hook's closure action. If omitted, the agent.json defaultClosureAction ('label-only') applies. triager should rarely set this — the dispatcher's guarantee is label-only."
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "'closing' triggers the boundary hook to apply the kind:* label in issue.labels.add via gh issue edit, then exits the loop. 'repeat' re-runs this step (e.g., transient gh failure during the eligibility check)."
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "issue": {
+        "type": "object",
+        "description": "Issue mutation payload consumed by the poll:state boundary hook. The 'labels' object follows the adapter contract: add/remove arrays of label names. labels.add MUST contain exactly one entry — the chosen kind:* label.",
+        "required": ["number", "labels"],
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "GitHub issue number being triaged. Must equal the --issue parameter."
+          },
+          "labels": {
+            "type": "object",
+            "required": ["add"],
+            "additionalProperties": false,
+            "properties": {
+              "add": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "string",
+                  "pattern": "^kind:(impl|detail|consider|plan)$"
+                },
+                "description": "Exactly one label: kind:impl|kind:detail|kind:consider|kind:plan (must be a key of workflow.json#labelMapping starting with 'kind:'). Triager does NOT assign order:N — that is the prioritizer's role."
+              },
+              "remove": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional labels to strip. Triager normally leaves this empty — pre-existing labels (workflow or otherwise) are preserved."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

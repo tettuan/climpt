@@ -22,19 +22,8 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 1
+        "maxIterations": 12
       }
-    },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task",
-        "WebFetch"
-      ],
-      "permissionMode": "bypassPermissions"
     },
     "logging": {
       "directory": "tmp/logs/agents/considerer",

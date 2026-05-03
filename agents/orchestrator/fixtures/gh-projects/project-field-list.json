@@ -1,0 +1,24 @@
+{
+  "fields": [
+    {
+      "id": "PVTF_lADOField001",
+      "name": "Status",
+      "type": "single_select",
+      "options": [
+        { "id": "PVTSSFO_opt001", "name": "Todo" },
+        { "id": "PVTSSFO_opt002", "name": "In Progress" },
+        { "id": "PVTSSFO_opt003", "name": "Done" }
+      ]
+    },
+    {
+      "id": "PVTF_lADOField002",
+      "name": "Priority",
+      "type": "number"
+    },
+    {
+      "id": "PVTF_lADOField003",
+      "name": "Due Date",
+      "type": "date"
+    }
+  ]
+}

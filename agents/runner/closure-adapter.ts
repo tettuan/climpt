@@ -10,7 +10,6 @@
 
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
 import type { PromptResolver as StepPromptResolver } from "../common/prompt-resolver.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 
@@ -31,12 +30,22 @@ export class ClosureAdapter {
   /**
    * Try to resolve a closure step prompt with adaptation override.
    *
+   * `adaptationOverride` (when present) wins over the config-derived
+   * `defaultClosureAction` adaptation. This is the entry point for
+   * self-route adaptation on the closure step (design 01-self-route-
+   * termination §3.2): when `runClosureLoop` advanced the cursor on the
+   * previous iteration's `action === "repeat"`, the runner threads the
+   * resolved chain element here so the C3L address resolves to the
+   * declared variant. When `adaptationOverride` is omitted, behaviour is
+   * unchanged from the pre-cursor path.
+   *
    * @returns Resolved prompt or null if not a closure step or resolver unavailable
    */
   async tryClosureAdaptation(
     stepId: string,
     ctx: RuntimeContext,
     uvVariables?: Record<string, string>,
+    adaptationOverride?: string,
   ): Promise<{ content: string; source: "user" } | null> {
     const stepPromptResolver = this.deps.getStepPromptResolver();
     const stepsRegistry = this.deps.getStepsRegistry();
@@ -52,8 +61,8 @@ export class ClosureAdapter {
       return null;
     }
 
-    const stepKind = inferStepKind(stepDef);
-    if (stepKind !== "closure") {
+    const kind = stepDef.kind;
+    if (kind !== "closure") {
       return null;
     }
 
@@ -63,8 +72,14 @@ export class ClosureAdapter {
       ? githubConfig?.defaultClosureAction
       : undefined;
 
-    // Only use adaptation override for non-default actions
-    const overrides = closureAction && closureAction !== "close"
+    // Resolve the adaptation override. Self-route cursor wins over config
+    // — the cursor expresses "what variant should run on this repeat",
+    // which supersedes the config-default close action. When neither
+    // applies, omit the override entirely so the resolver uses the step's
+    // declared `address.adaptation`.
+    const overrides = adaptationOverride !== undefined
+      ? { adaptation: adaptationOverride }
+      : closureAction && closureAction !== "close"
       ? { adaptation: closureAction }
       : undefined;
 
@@ -86,7 +101,7 @@ export class ClosureAdapter {
       ctx.logger.info(
         `[ClosureAdaptation] Resolved closure prompt for step "${stepId}"`,
         {
-          adaptation: closureAction ?? "close",
+          adaptation: overrides?.adaptation ?? "close",
           source: result.source,
           promptPath: result.promptPath,
         },

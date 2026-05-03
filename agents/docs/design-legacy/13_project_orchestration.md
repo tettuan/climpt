@@ -1,0 +1,453 @@
+# 13. Project Orchestration (v1.14.x)
+
+> Status: draft (tmp). Target: `agents/docs/design/13_project_orchestration.md`
+> after review. Level: 2 (Structure / Contract) per `/docs-writing` framework.
+
+## 0. Context
+
+v1.13.x は issue-based workflow (`kind:consider → kind:detail → kind:impl`) を
+label 駆動で回す。v1.14.x では GitHub Projects v2 を **release 目標の unit**
+として扱い、以下を実現する:
+
+- project が issue の登録先 + list 取得条件になる
+- project 目標の達成度が新 issue 起票判断の指標になる
+- v1.13.x の issue workflow を壊さず共存させる
+
+前提:
+
+- **project の作成 / goal (readme) の記述は user が GH 側で直接行う** (gh CLI /
+  Claude Code など climpt 外部で)
+- climpt は与えられた project を **consume** する (list / read / bind / field
+  update)
+- ローカル state を持たない — GH が single source of truth (v1.13.x の issue
+  扱いと同型)
+
+## 1. Principle (Level 1 要約)
+
+| 原則                      | 内容                                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| P1 Stateless              | climpt は project/goal/membership を local に永続化しない。全て live query                                 |
+| P2 Framework / Agent 分離 | climpt = generic primitive (read/bind/update/list)。user `.agent/<name>/` = intent (goal 解釈、評価、計画) |
+| P3 Consumer               | project 作成と goal 記述は user 責務。climpt は given project に対してのみ動く                             |
+| P4 BC                     | `projectBinding` 未設定時 v1.13.x と bitwise 同一動作                                                      |
+
+## 2. Structure / Contract
+
+### 2.1 Data model
+
+Issue ↔ Project 関係:
+
+- N:N (GH Projects v2 native)
+- climpt 内に primary project 概念を持たない — 所属 project list は GH live
+  query で取得
+- 複数所属時は全 project readme を agent prompt に注入 (user agent が解釈)
+
+Project representation (read-only consumption):
+
+```ts
+type Project = {
+  id: string; // GraphQL node id "PVT_..."
+  number: number; // owner-scoped
+  owner: string;
+  title: string;
+  readme: string; // goal content authored by user on GH
+  shortDescription: string | null;
+  closed: boolean;
+};
+
+type ProjectItem = {
+  id: string; // "PVTI_..."
+  issueNumber: number;
+  fieldValues: Record<string, unknown>;
+};
+
+type ProjectField = {
+  id: string;
+  name: string;
+  type: "text" | "number" | "date" | "single_select" | "iteration";
+  options?: { id: string; name: string }[];
+};
+
+type ProjectRef = { owner: string; number: number } | { id: string };
+type ProjectFieldValue = string | number | { optionId: string } | {
+  date: string;
+};
+```
+
+### 2.2 GitHubClient extensions (additive)
+
+既存 interface は不変。以下を追加。全て live GH query (gh CLI wrap)。全 project
+メソッドは `ProjectRef` (`{ owner, number } | { id }`) を受け取り、`GhCliClient`
+は `owner + number` 形式のみサポートする (`{ id }` は throw)。
+
+**Read**
+
+- `listUserProjects(owner: string): Promise<Project[]>`
+- `getProject(project: ProjectRef): Promise<Project>`
+- `getIssueProjects(issueNumber: number): Promise<Array<{ owner: string; number: number }>>`
+- `listProjectItems(project: ProjectRef): Promise<{ id: string; issueNumber: number }[]>`
+- `getProjectFields(project: ProjectRef): Promise<ProjectField[]>`
+- `getProjectItemIdForIssue(project: ProjectRef, issueNumber: number): Promise<string | null>`
+
+**Write**
+
+- `addIssueToProject(project: ProjectRef, issueNumber: number): Promise<string /* itemId */>`
+- `removeProjectItem(project: ProjectRef, itemId: string): Promise<void>`
+- `updateProjectItemField(project: ProjectRef, itemId: string, fieldId: string, value: ProjectFieldValue): Promise<void>`
+- `closeProject(project: ProjectRef): Promise<void>`
+- `createProjectFieldOption(project: ProjectRef, fieldId: string, name: string, color?: string): Promise<{ id: string; name: string }>`
+
+**Intentionally NOT included** (user responsibility via direct gh CLI):
+
+- `createProject` / `editProjectReadme`
+- `createField`
+
+理由: project schema (field, readme) の design は user intent。climpt
+がこれを書き換えると境界崩壊。ただし field **option** の追加は例外とする (下記
+bootstrap 責務を参照)。
+
+**Status option bootstrap 責務**: orchestrator が F-d mapping 実行時に必要な
+Status option (例: "Blocked") が project field に存在しなければ、
+`createProjectFieldOption` で冪等に bootstrap する。既定 option (Todo / In
+Progress / Done) は user が GH 側で管理し、climpt 固有の追加 option のみ
+orchestrator が自動作成する。
+
+### 2.3 OutboxAction additions
+
+既存 union (`comment | create-issue | update-labels | close-issue`) を additive
+拡張:
+
+```ts
+type OutboxAction =
+  | /* existing 4 types unchanged (comment, create-issue, update-labels, close-issue) */
+  | { action: "add-to-project"; project: ProjectRef; issueNumber?: number }
+  | { action: "remove-from-project"; project: ProjectRef; itemId: string }
+  | { action: "update-project-item-field"; project: ProjectRef; itemId: string; fieldId: string; value: ProjectFieldValue }
+  | { action: "close-project"; project: ProjectRef }
+  | { action: "merge-close-fact"; subjectId: number; mergedAt: number; prNumber: number; runId: string };
+```
+
+`merge-close-fact` は `OutboxProcessor` では処理されない IPC ペイロード。
+`merge-pr` サブプロセスが書き込み、親 orchestrator の `MergeCloseAdapter` が
+`IssueClosedEvent({ channel: "M" })` として bus に publish する (PR4-4)。
+
+**Late-binding contract (new in OutboxProcessor)**:
+
+`add-to-project` の `issueNumber` が省略された場合、同 outbox cycle
+内で直前に実行された `create-issue` の返り値 (新 issue number) を参照する。
+
+具体的:
+
+- File naming: `000-deferred-NNN-create-issue.json` の直後に
+  `000-deferred-NNN-add-to-project.json` (同じ `NNN` で pair)
+- OutboxProcessor は action 実行後、結果を
+  `prevResultByFamily: Map<string, ActionResult>` に保持
+- 後続 action が `issueNumber` 不在かつ同 family の直前 action が `create-issue`
+  成功 → その結果を注入
+
+この契約は `DeferredItemsEmitter` の inheritance emission でのみ使われる。外部
+writer はこの契約に依存してはならない。
+
+### 2.4 Orchestrator hooks
+
+**Hook O1: Project context injection on dispatch** — release/1.14.0 で削除。
+v1.15.0 で再設計予定 (#540)。breakdown CLI の入力サニタイザが README 内の shell
+metacharacter を弾くため、UV 注入境界での sanitize と consumer-prompt の syntax
+統一 (`{{project_goals}}` → `{uv-project_goals}`) を含めて再実装が必要。
+
+**Hook O2: Project inheritance on deferred_items**
+
+`DeferredItemsEmitter` が agent output の `deferred_items[]` を処理する際:
+
+1. Parent issue の project memberships を `getIssueProjects` で取得
+2. 各 `deferred_item` について:
+   - `projects` field 不在 **かつ**
+     `workflow.json.projectBinding.inheritProjectsForCreateIssue === true` →
+     parent の全 project を継承
+   - `projects: []` 明示 → 継承しない (opt-out)
+   - `projects: [...]` 明示 → その list を使用
+3. 継承された project 1 個につき 1 個の `add-to-project` action を
+   `create-issue` の直後に enqueue (late-bind)
+
+### 2.5 workflow.json extension
+
+optional block 1 個のみ追加 (不在 → v1.13.x 完全互換)。存在時は全 5 field が
+required:
+
+```json
+{
+  "projectBinding": {
+    "inheritProjectsForCreateIssue": true,
+    "donePhase": "impl-done",
+    "evalPhase": "eval-pending",
+    "planPhase": "plan-pending",
+    "sentinelLabel": "project:sentinel"
+  }
+}
+```
+
+| Field                           | 型      | 意味                                                                 |
+| ------------------------------- | ------- | -------------------------------------------------------------------- |
+| `inheritProjectsForCreateIssue` | boolean | O2 hook で parent project を deferred_items に継承するか             |
+| `donePhase`                     | string  | Per-item 完了を示す phase ID (terminal phase でなければならない)     |
+| `evalPhase`                     | string  | Sentinel が全子 issue 完了後に遷移する phase ID (actionable + agent) |
+| `planPhase`                     | string  | Sentinel が bootstrap 時に付与される phase ID (actionable + agent)   |
+| `sentinelLabel`                 | string  | Project sentinel issue を識別する GitHub label                       |
+
+**Validation (workflow-loader)**: `donePhase` は terminal、`evalPhase` /
+`planPhase` は actionable かつ agent 割当あり、`sentinelLabel` は marker role
+label。違反時は `WF-PROJECT-001` 〜 `WF-PROJECT-010` エラー。Boot validation
+(W6) で phase 存在を追加検証。
+
+**三形式**: `projectBinding` は不在 / 全 field 指定 / opt-out (`projects: []`)
+の三形態で運用される (§2.8 DeferredItem schema 参照)。
+
+### 2.6 IssueSource ADT (project-scoped execution)
+
+旧 `IssueCriteria.project` は `IssueSource` ADT に昇格済み。`IssueCriteria` は
+`gh issue list` 引数構築用の transport-level helper に縮退し、project field を
+持たない。
+
+```ts
+type IssueSource =
+  | {
+    kind: "ghProject";
+    project: ProjectRef;
+    labels?: string[];
+    state?: IssueQueryState;
+    limit?: number;
+  }
+  | {
+    kind: "ghRepoIssues";
+    repo?: RepoRef;
+    labels?: string[];
+    state?: IssueQueryState;
+    limit?: number;
+    projectMembership?: "any" | "unbound";
+  }
+  | { kind: "explicit"; issueIds: SubjectRef[] };
+```
+
+Resolution:
+
+- `ghProject` → `listProjectItems(project)` で project member 集合を取得し、
+  `listIssues` 結果と intersection
+- `ghRepoIssues` (default `projectMembership: "unbound"`) → project 未所属 issue
+  のみ (project-scoped run の補完)
+- `ghRepoIssues` (`projectMembership: "any"`) → 全 issue (escape hatch)
+- `explicit` → listing skip、指定 issue のみ sync
+
+CLI:
+
+- `deno task orchestrate --project <owner>/<number>` →
+  `IssueSource { kind: "ghProject" }`
+- `deno task orchestrate --all-projects` →
+  `IssueSource { kind: "ghRepoIssues", projectMembership: "any" }`
+- prioritizer (`order:1..9`) はこの filter 後の集合に対して作用
+  (既存ロジック不変)
+
+### 2.7 CLI utilities (minimal)
+
+project list 取得が user 要件。最小の 2 個のみ:
+
+- `deno task project list [--owner <o>]` → `listUserProjects` wrap
+- `deno task project items <owner>/<number>` → `listProjectItems` + field
+  値集計表示
+
+以下は提供しない (user は gh CLI / Claude Code 直接で行う):
+
+- project 作成 / readme 編集 / field 作成 / agent bootstrap
+
+### 2.8 DeferredItem schema extension
+
+現行 (`considerer` schema):
+
+```ts
+type DeferredItem = { title: string; body: string; labels: string[] };
+```
+
+追加 optional field:
+
+```ts
+type DeferredItem = {
+  title: string;
+  body: string;
+  labels: string[];
+  projects?: ProjectRef[]; // NEW; absent = inherit parent's projects
+};
+```
+
+Validation: 存在時は array of valid `ProjectRef`。空配列は「継承なし」の opt-out
+signal。
+
+### 2.9 Status field semantics
+
+**climpt は Status field を自動更新しない**。
+
+- v1.13.x の phase 遷移 (`kind:impl → done` 等) は GH Project の Status field
+  に自動反映されない
+- Status 管理が必要な user は `.agent/<name>/` の agent output で
+  `update-project-item-field` outbox action を明示 emit する
+- GH Project の field schema (option の種類、命名) は user が事前に GH 側で整備
+
+理由: field schema は user の design 空間であり、climpt が勝手に mapping
+を定義したり option を upsert すべきでない。v1.13.x workflow は labels
+で完結しており、Status field は orthogonal な observability layer として user
+に委ねる。
+
+### 2.10 Planner / Evaluator agent 責務境界
+
+Project lifecycle は sentinel issue を軸に plan → execute → evaluate → close の
+4 段階で回る。planner と evaluator は専用 agent ではなく、通常の phase dispatch
+で呼び出される。
+
+**Bootstrap**: `deno task project:init` (`agents/scripts/project-init.ts`) が
+sentinel issue を作成し、`planPhase` label + `sentinelLabel` を付与。次の
+orchestrator cycle で `planPhase` に割り当てられた agent (= project-planner) が
+dispatch される。
+
+**Planner** (`.agent/project-planner/`):
+
+- 入力: sentinel issue body + project README (v1.15.0 #540 で prompt 注入予定)
+- 出力: `planner.schema.json` 準拠の structured output。`proposed_issues[]` は
+  `deferred_items[]` と同一構造 (§2.8) で `DeferredItemsEmitter`
+  が変換なしで消費
+- 責務: project goal を分解し、必要な issue を `proposed_issues` として列挙
+- 境界: 起票の実行は planner agent ではなく orchestrator の outbox が行う
+
+**Evaluator** (phase dispatch):
+
+- 専用の `.agent/project-evaluator/` ディレクトリは存在しない
+- `evalPhase` に割り当てられた agent が evaluator として動作する
+- trigger: `CascadeCloseChannel` (`agents/channels/cascade-close.ts`) が
+  `IssueClosedEvent` を受信し、project 内の全 non-sentinel item が `donePhase`
+  に到達したとき sentinel の label を `donePhase` → `evalPhase` に flip
+  (doneLabel を remove し evalLabel を add)
+- 責務: project 全体の完了を確認し、必要なら `close-project` outbox action を
+  emit
+- 境界: 完了判定と close 指示は evaluator agent の責務。CascadeCloseChannel は
+  sentinel label flip のみ行い、project close は行わない
+
+**T6.eval migration**: v1.14.0 で inline sentinel-cascade 検出ロジックは
+orchestrator.ts から `CascadeCloseChannel` に移行済み (PR4-3 / T4.4b cutover)。
+Channel は event bus の `IssueClosedEvent` を subscribe し、非同期に sibling
+集計 → sentinel label transition を実行する。
+
+## 3. Invariants
+
+| ID | Invariant                                                                                                |
+| -- | -------------------------------------------------------------------------------------------------------- |
+| I1 | `workflow.json.projectBinding` 不在 → v1.13.x と bitwise 同一動作                                        |
+| I2 | Issue が 0 project 所属 → O2 inheritance は no-op (O1 goal 注入は v1.15.0 で再導入予定 #540)             |
+| I3 | `add-to-project` の late-bind `issueNumber` は同 outbox cycle の直前 `create-issue` 結果のみ参照可       |
+| I4 | climpt は project の `readme` / field schema / option を書き換えない (write primitive 非提供)            |
+| I5 | climpt は Status field を自動更新しない (user の明示 outbox action でのみ変化)                           |
+| I6 | `IssueSource.kind` が `ghRepoIssues` (unbound) → 従来 dispatch behavior                                  |
+| I7 | 複数 project 所属 issue で deferred_items を継承した場合、継承先 issue は同一の全 project に bind される |
+
+## 4. BC Matrix
+
+| v1.13.x 動作                  | v1.14.x (projectBinding off) | v1.14.x (projectBinding on, issue 無所属) |
+| ----------------------------- | ---------------------------- | ----------------------------------------- |
+| dispatch                      | 同一                         | 同一                                      |
+| label transition              | 同一                         | 同一                                      |
+| deferred_items → create-issue | 同一                         | 同一 (継承 no-op)                         |
+| close-issue                   | 同一                         | 同一                                      |
+| outbox actions                | 4 種のみ使用                 | 4 種のみ使用                              |
+
+v1.14.x の新機能は **user が explicit に on にしかつ issue を project
+に登録した場合のみ** 起動する。
+
+## 5. Boundary summary
+
+| 責務                                | 担当                                                           |
+| ----------------------------------- | -------------------------------------------------------------- |
+| Project 作成                        | **user** (gh CLI / Claude Code 直接)                           |
+| Goal (readme) 記述 / 更新           | **user** (gh project edit)                                     |
+| Project field schema 設計           | **user** (gh project field-create)                             |
+| Project list 取得                   | **climpt** (`listUserProjects`, `deno task project list`)      |
+| Project metadata 読込 (readme 含む) | **climpt** (`getProject`)                                      |
+| Issue → project 所属 query          | **climpt** (`getIssueProjects`)                                |
+| Project items 一覧                  | **climpt** (`listProjectItems`, `deno task project items`)     |
+| Issue を project に追加             | **climpt** (outbox `add-to-project`, O2 継承)                  |
+| Goal を agent prompt に注入         | **climpt** (v1.15.0 で再実装予定 — #540)                       |
+| Goal の解釈 / 達成度評価            | **user `.agent/<name>/`**                                      |
+| 起票すべき追加 issue の判断         | **user `.agent/<name>/`** (`deferred_items` emission)          |
+| Status field 更新                   | **user `.agent/<name>/`** (outbox `update-project-item-field`) |
+| Project 完了判断 / close            | **user `.agent/<name>/`** (outbox `close-project`)             |
+| Sentinel label flip (T6.eval)       | **climpt** (`CascadeCloseChannel` — event bus 経由)            |
+| Sentinel bootstrap (project:init)   | **climpt** (`deno task project:init`)                          |
+| Release PR 作成                     | **user** (manual, `/release-procedure`)                        |
+
+## 6. Level 3: Open design decisions
+
+旧 item 1 (OutboxProcessor inter-action state) は §2.3 late-binding contract
+(L119-134) で定義済み、#487 で実装済み。以下 4 項目が残る未解決事項であり、
+各項目に chosen default / rationale / implementation note を記載する。
+
+### 6.1 Cache / rate-limit
+
+**Default**: Process-lifetime `Map<string, {data, expiry}>` cache、TTL 30 秒。
+
+**Rationale**: GitHub GraphQL API は 5,000 points/hour。典型的な dispatch cycle
+(issue 10-20 件) では数十 calls — ceiling の 1% 未満。v1.15.0 で goal injection
+(#540) が再導入されても数百 calls/cycle で上限には到達しない。TTL 30 秒は単一
+dispatch cycle (秒〜低分) 内の重複呼び出しを排除し、cycle 間は `countdownDelay`
+またはプロセス 再起動で自然に expire する。明示的 invalidation 不要。P1
+(Stateless) との整合: 永続化しない in-memory cache は stateless 原則を破らない。
+
+**Implementation note**: `GhCliClient` 内に
+`#cache: Map<string, {data: unknown,
+expiry: number}>` を追加。各 read メソッド
+(`listUserProjects`, `getProject`, `getIssueProjects`, `listProjectItems`,
+`getProjectFields`, `getProjectItemIdForIssue`) の先頭で `#cacheGet(key)` → hit
+なら return、miss なら fetch + `#cacheSet(key, data, ttlMs=30_000)`。
+
+### 6.2 Sandbox allow-list
+
+**Default**: 変更不要。
+
+**Rationale**: `gh project *` コマンドは orchestrator (host process) の
+`Deno.Command()` で実行される。Agent SDK sandbox は agent 内部の Bash tool
+実行に のみ適用される。orchestrator は agent の外側で動くため sandbox boundary
+の外にいる。 `sandbox-defaults.ts:25-28` のコメントが設計を明示: "System paths
+(Boundary Hook, worktree, orchestrator) use Deno.Command outside the sandbox and
+are not affected." agent 側から直接 `gh project` を実行する use case は §5
+Boundary summary で排除されている (project 操作は climpt framework の責務)。
+
+**Implementation note**: 実装不要。現行の `sandbox-defaults.ts` を維持。
+
+### 6.3 `getIssueProjects` failure fallback
+
+**Default**: Skip silently (warn log + continue dispatch)。
+
+**Rationale**: Project goal injection (v1.15.0 で再導入予定 #540) は
+supplementary context であり agent の必須入力ではない — goal が空でも agent は
+label-based workflow で正常に動作する。P1 (Stateless) により cached fallback
+data は持たない — block か skip の二択。dispatch cycle を block すると全 issue
+の進行が停止し、transient error で全停止は不均衡。 warning log で operator
+が検知可能、次の dispatch cycle で自然にリトライ される。
+
+T6.eval (`orchestrator.ts:843`) の completion check も同様: skip +
+warn。sentinel 評価は次の close event で再試行される。
+
+### 6.4 Multi-owner scope
+
+**Default**: 暗黙のデフォルト owner を持たない (常に明示指定)。
+
+**Rationale**: GH Projects v2 の `number` は owner-scoped — `tettuan/1` と
+`my-org/1` は別 project。`ProjectRef { owner, number }` は owner-scoped number
+で 十分に disambiguate する。`getIssueProjects` が `{ owner, number }`
+を返すため、 O2 inheritance 時に owner 情報が自然に伝播する。暗黙の owner
+(GitHub user endpoint から推定) は組織 project
+を見落とすリスクがある。`listUserProjects` は CLI utility (探索用) であり
+dispatch 本流には使われない。
+
+**Implementation note**: 実装不要。現行の `ProjectRef { owner, number }` 型と
+`listUserProjects(owner: string)` の明示 owner 引数を維持。
+
+## 7. 関連
+
+- `02_core_architecture.md` の Stateless 原則を Project に拡張
+- `10_extension_points.md` に OutboxAction / IssueCriteria の拡張を追記
+- `12_orchestrator.md` に O2 hook を追記 (O1 は v1.15.0 #540 で再導入予定)

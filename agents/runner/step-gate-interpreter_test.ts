@@ -9,7 +9,8 @@ import {
   getValueAtPath,
   StepGateInterpreter,
 } from "./step-gate-interpreter.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("gate");
 
@@ -41,20 +42,18 @@ Deno.test("getValueAtPath - returns undefined for null intermediate", () => {
   assertEquals(getValueAtPath(obj, "a.b"), undefined);
 });
 
-// Helper to create minimal step definition
+// Helper to create minimal step definition. Tests pass field overrides
+// in the legacy disk-shape (c2/c3/edition); makeStep aggregates them.
 function createStepDef(
-  overrides: Partial<PromptStepDefinition> = {},
-): PromptStepDefinition {
-  return {
+  overrides: Record<string, unknown> = {},
+): Step {
+  return makeStep({
+    kind: "work" as const,
+    address: { c1: "steps", c2: "test", c3: "step", edition: "default" },
     stepId: "test.step",
     name: "Test Step",
-    c2: "test",
-    c3: "step",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
     ...overrides,
-  };
+  });
 }
 
 Deno.test("StepGateInterpreter - returns fallback when no structuredGate", () => {
@@ -117,7 +116,7 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "repeat", "closing", "abort"],
+      allowedIntents: ["next", "repeat", "closing", "escalate"],
       intentField: "action",
       intentSchemaRef: "#/test",
     },

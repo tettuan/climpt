@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Project-planner agent step schemas. The agent is a 3-step linear chain: goal-extract → issue-survey → plan. The terminal plan step emits proposed_issues[] (deferred_items-compatible) to close the gap between goal_axes and existing_issues.",
+
+  "closure.plan.goal-extract": {
+    "type": "object",
+    "description": "Work step output: extract goal_statement and goal_axes from injected {{project_goals}} README. fail-fast: if {{project_goals}} is absent or empty, set extraction_method='absent', leave goal_axes empty, and emit next; the terminal plan step short-circuits to a 'goal unavailable' final_summary with empty proposed_issues.",
+    "required": ["next_action", "goal_statement", "goal_axes", "extraction_method"],
+    "additionalProperties": false,
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "next = goal-extract attempt complete (including absent fast-path), advance to closure.plan.issue-survey. repeat = parse retry needed."
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "goal_statement": {
+        "type": "string",
+        "description": "Goal text extracted verbatim (or near-verbatim) from the project README. Empty string only when extraction_method='absent' (fast-path for missing {{project_goals}})."
+      },
+      "extraction_method": {
+        "type": "string",
+        "enum": ["readme_heading", "readme_body", "readme_list", "absent"],
+        "description": "How the goal was located. absent = {{project_goals}} missing/empty; the closure step will emit a 'goal unavailable' summary."
+      },
+      "goal_axes": {
+        "type": "array",
+        "minItems": 0,
+        "description": "Coverage dimensions implied by the goal (e.g. 'schema', 'CLI', 'docs', 'tests'). Empty list only when extraction_method='absent'.",
+        "items": {
+          "type": "object",
+          "required": ["axis", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Short name of the coverage dimension."
+            },
+            "description": {
+              "type": "string",
+              "description": "What this axis covers in the context of the project goal."
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "closure.plan.issue-survey": {
+    "type": "object",
+    "description": "Work step output: enumerate open issues in the project bound to the sentinel. Pure listing; no gap analysis here.",
+    "required": ["next_action", "goal_statement", "goal_axes", "extraction_method", "existing_issues", "existing_issue_count"],
+    "additionalProperties": false,
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["handoff", "repeat"],
+            "description": "handoff = listing complete (including empty list); transitions from work to closure (closure.plan.plan). repeat = gh call failure / parse error."
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "goal_statement": { "type": "string" },
+      "extraction_method": {
+        "type": "string",
+        "enum": ["readme_heading", "readme_body", "readme_list", "absent"]
+      },
+      "goal_axes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["axis", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "axis": { "type": "string", "minLength": 1 },
+            "description": { "type": "string" }
+          }
+        }
+      },
+      "existing_issues": {
+        "type": "array",
+        "description": "Open issues currently in the project. Pass-through inventory for the plan step's gap analysis.",
+        "items": {
+          "type": "object",
+          "required": ["number", "title", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "number": { "type": "integer", "minimum": 1 },
+            "title": { "type": "string", "minLength": 1 },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "existing_issue_count": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Length of existing_issues, recorded explicitly so the plan step can sanity-check the listing."
+      }
+    }
+  },
+
+  "closure.plan.plan": {
+    "type": "object",
+    "description": "Closure step output. Compute gap between goal_axes and existing_issues, emit proposed_issues[] (structurally identical to considerer deferred_items so the orchestrator issue-emitter consumes them without transformation). coverage_axes maps each goal axis to the proposed_issues indices that address it.",
+    "required": ["next_action", "goal_statement", "goal_axes", "extraction_method", "existing_issues", "existing_issue_count", "proposed_issues", "coverage_axes", "verdict", "final_summary"],
+    "additionalProperties": false,
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "closing = emit proposed issues and finish. repeat = re-examine (used only when completed_iterations < maxIterations and the previous attempt was internally inconsistent)."
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "goal_statement": { "type": "string", "minLength": 1 },
+      "extraction_method": {
+        "type": "string",
+        "enum": ["readme_heading", "readme_body", "readme_list", "absent"]
+      },
+      "goal_axes": {
+        "type": "array",
+        "minItems": 0,
+        "items": {
+          "type": "object",
+          "required": ["axis", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "axis": { "type": "string", "minLength": 1 },
+            "description": { "type": "string" }
+          }
+        }
+      },
+      "existing_issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["number", "title", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "number": { "type": "integer", "minimum": 1 },
+            "title": { "type": "string", "minLength": 1 },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "existing_issue_count": { "type": "integer", "minimum": 0 },
+      "coverage_axes": {
+        "type": "array",
+        "minItems": 1,
+        "description": "Mapping each goal axis to the proposed_issues indices that address it. Every goal_axes entry MUST appear here even if issue_indices is empty (= gap unaddressed by this batch).",
+        "items": {
+          "type": "object",
+          "required": ["axis", "description", "issue_indices"],
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Axis name from goal_axes. Must match one of the upstream goal_axes[].axis values."
+            },
+            "description": { "type": "string" },
+            "issue_indices": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "description": "Zero-based indices into proposed_issues[] that address this axis. Empty array = axis unaddressed by this batch."
+            }
+          }
+        }
+      },
+      "proposed_issues": {
+        "type": "array",
+        "description": "Issue candidates closing the gap between goal_axes and existing_issues. Structurally compatible with considerer deferred_items — the orchestrator issue-emitter consumes these via the same outbox path.",
+        "default": [],
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "required": ["title", "body", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Issue title. Self-contained; no reference to the parent issue number required (the runner links it back via body)."
+            },
+            "body": {
+              "type": "string",
+              "description": "Issue body in markdown. Should restate the scope concretely so the downstream agent does not need to re-read the parent issue."
+            },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Labels applied to the new issue. Usually 'kind:impl' or 'kind:consider'. Omit 'order:N' — the triager assigns it."
+            },
+            "projects": {
+              "type": "array",
+              "description": "Project bindings for the new issue. Absent = inherit parent's projects (when inheritProjectsForCreateIssue is on). Empty array = explicit opt-out (no inheritance). Non-empty array = use this explicit list, parent ignored.",
+              "items": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "required": ["owner", "number"],
+                    "properties": {
+                      "owner": { "type": "string", "minLength": 1 },
+                      "number": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "required": ["id"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["done"],
+        "default": "done",
+        "description": "Always 'done' for the plan step — the planner emits issues and finishes. workflow.json maps project-planner.outputPhase=done."
+      },
+      "final_summary": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Human-readable summary of what was planned and why."
+      }
+    }
+  }
+}

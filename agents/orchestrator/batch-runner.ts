@@ -10,21 +10,25 @@ import {
   type BatchOptions,
   type BatchResult,
   DEFAULT_SUBJECT_STORE,
-  type IssueCriteria,
+  type IssueSource,
   type OrchestratorOptions,
   type OrchestratorResult,
   type WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
+import type { AgentRegistry } from "../boot/types.ts";
+import type { CloseEventBus } from "../events/bus.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { IssueSyncer } from "./issue-syncer.ts";
 import { Prioritizer } from "./prioritizer.ts";
 import { Queue } from "./queue.ts";
+import { SubjectPicker } from "./subject-picker.ts";
 import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { countdownDelay } from "./countdown.ts";
 import { summarizeSync, syncLabels } from "./label-sync.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 /** Interface for single-issue workflow execution, used by BatchRunner. */
 export interface SingleIssueRunner {
@@ -43,23 +47,78 @@ export class BatchRunner {
   #github: GitHubClient;
   #dispatcher: AgentDispatcher;
   #cwd: string;
+  #agentRegistry: AgentRegistry | undefined;
+  #bus: CloseEventBus | undefined;
+  #runId: string | undefined;
 
+  /**
+   * Construct a `BatchRunner`.
+   *
+   * @param runner        Per-issue runner (typically {@link Orchestrator}).
+   * @param config        Frozen WorkflowConfig.
+   * @param github        GitHub client.
+   * @param dispatcher    Pre-constructed dispatcher (already holds the
+   *                      frozen `AgentRegistry` when concrete).
+   * @param cwd           Working directory.
+   * @param agentRegistry Optional frozen `AgentRegistry` reference
+   *                      (T2.3). Carried for symmetry with the
+   *                      Orchestrator → BatchRunner threading; consumers
+   *                      that need to construct a sub-dispatcher in the
+   *                      future read it from here. Not used by the batch
+   *                      itself today (the dispatcher already encloses
+   *                      the registry).
+   * @param bus           T3.3 (shadow mode): frozen `CloseEventBus` from
+   *                      `BootArtifacts.bus`. Carried for symmetry with
+   *                      the Orchestrator threading; the batch loop
+   *                      itself does not publish today (every per-issue
+   *                      event flows through the `Orchestrator.run`
+   *                      child invocation).
+   * @param runId         Stable boot correlation id; paired with
+   *                      {@link bus}.
+   */
   constructor(
     runner: SingleIssueRunner,
     config: WorkflowConfig,
     github: GitHubClient,
     dispatcher: AgentDispatcher,
     cwd: string,
+    agentRegistry?: AgentRegistry,
+    bus?: CloseEventBus,
+    runId?: string,
   ) {
     this.#runner = runner;
     this.#config = config;
     this.#github = github;
     this.#dispatcher = dispatcher;
     this.#cwd = cwd;
+    this.#agentRegistry = agentRegistry;
+    this.#bus = bus;
+    this.#runId = runId;
+  }
+
+  /** Frozen bus reference (T3.3) — exposed so future per-batch
+   *  observers can read without re-loading. */
+  get bus(): CloseEventBus | undefined {
+    return this.#bus;
+  }
+
+  /** Stable boot correlation id paired with {@link bus}. */
+  get runId(): string | undefined {
+    return this.#runId;
+  }
+
+  /**
+   * Frozen `AgentRegistry` (or `undefined` when constructed without
+   * Boot artifacts — e.g. StubDispatcher tests). Exposed read-only so
+   * downstream subroutines can confirm Layer-4 identity without
+   * re-loading config.
+   */
+  get agentRegistry(): AgentRegistry | undefined {
+    return this.#agentRegistry;
   }
 
   async run(
-    criteria: IssueCriteria,
+    source: IssueSource,
     options?: BatchOptions,
   ): Promise<BatchResult> {
     const log = await OrchestratorLogger.create(this.#cwd, {
@@ -72,10 +131,14 @@ export class BatchRunner {
       const store = new SubjectStore(storePath);
 
       const wfId = this.#runner.workflowId;
+      const origin = detectRuntimeOrigin(import.meta.url);
       await log.info(`Batch start workflow "${wfId}"`, {
         event: "batch_start",
         workflowId: wfId,
-        criteria,
+        issueSource: source,
+        climptVersion: origin.version,
+        climptSource: origin.source,
+        climptModuleUrl: origin.moduleUrl,
       });
 
       // 0. Workflow-level lock
@@ -99,7 +162,7 @@ export class BatchRunner {
       });
 
       try {
-        return await this.#runInner(store, criteria, options, log);
+        return await this.#runInner(store, source, options, log);
       } finally {
         await lock.release();
       }
@@ -110,7 +173,7 @@ export class BatchRunner {
 
   async #runInner(
     store: SubjectStore,
-    criteria: IssueCriteria,
+    source: IssueSource,
     options: BatchOptions | undefined,
     log: OrchestratorLogger,
   ): Promise<BatchResult> {
@@ -124,8 +187,22 @@ export class BatchRunner {
 
     const syncer = new IssueSyncer(this.#github, store);
 
-    // 1. Sync issues from gh to local store
-    const subjectIds = await syncer.sync(criteria);
+    // 1. Build SubjectQueue via SubjectPicker (T5.1).
+    //    The `source` argv override may differ from `this.#config.issueSource`
+    //    when `run-workflow.ts` synthesises a per-invocation IssueSource
+    //    (e.g. `--project` / `--all-projects`). Construct a workflow view
+    //    that points at the effective source so the picker stays the
+    //    single seam (15 §B). Realistic 12 §A constrains run-workflow to
+    //    one IssueSource per invocation; argv override happens before
+    //    BatchRunner sees the source.
+    const pickerWorkflow = source === this.#config.issueSource
+      ? this.#config
+      : { ...this.#config, issueSource: source };
+    const picker = SubjectPicker.fromIssueSyncer(pickerWorkflow, syncer);
+    const queueItemsFromPicker = await picker.pick();
+    const subjectIds = queueItemsFromPicker.map((item) =>
+      Number(item.subjectId)
+    );
     await log.info(`Synced ${subjectIds.length} issues`, {
       event: "sync_complete",
       issueCount: subjectIds.length,

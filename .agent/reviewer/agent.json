@@ -47,10 +47,6 @@
         "maxIterations": 300
       }
     },
-    "boundaries": {
-      "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-      "permissionMode": "acceptEdits"
-    },
     "integrations": {
       "github": {
         "enabled": true,

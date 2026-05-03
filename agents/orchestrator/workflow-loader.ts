@@ -10,10 +10,26 @@ import { join } from "@std/path";
 import {
   type AgentDefinition,
   DEFAULT_SUBJECT_STORE,
+  deriveInvocations,
+  type IssueSource,
   type WorkflowConfig,
   type WorkflowRules,
 } from "./workflow-types.ts";
 import {
+  accept,
+  type Decision,
+  reject as rejectDecision,
+  type ValidationError,
+  validationError,
+  type ValidationErrorCode,
+} from "../shared/validation/mod.ts";
+import { ConfigError } from "../shared/errors/config-errors.ts";
+import {
+  wfIssueSourceExplicitMissingIds,
+  wfIssueSourceGhProjectMissingProject,
+  wfIssueSourceGhRepoInvalidMembership,
+  wfIssueSourceRequired,
+  wfIssueSourceUnknownKind,
   wfLabelMappingEmpty,
   wfLabelSpecInvalidColor,
   wfLabelSpecMissing,
@@ -25,6 +41,19 @@ import {
   wfPhaseAgentRequired,
   wfPhaseInvalidType,
   wfPhasePriorityRequired,
+  wfProjectDonePhaseNotInLabelMapping,
+  wfProjectDonePhaseNotTerminal,
+  wfProjectDonePhaseUnknown,
+  wfProjectEvalPhaseAgentMissing,
+  wfProjectEvalPhaseNotActionable,
+  wfProjectEvalPhaseNotInLabelMapping,
+  wfProjectEvalPhaseUnknown,
+  wfProjectPlanPhaseAgentMissing,
+  wfProjectPlanPhaseNotActionable,
+  wfProjectPlanPhaseNotInLabelMapping,
+  wfProjectPlanPhaseUnknown,
+  wfProjectSentinelLabelNotMarker,
+  wfProjectSentinelLabelUnknown,
   wfRefCloseConditionWithoutCloseOnComplete,
   wfRefInvalidCloseCondition,
   wfRefUnknownAgent,
@@ -84,13 +113,25 @@ export async function loadWorkflow(
     | WorkflowConfig["subjectStore"]
     | undefined;
 
+  // The shipped `.agent/workflow.json` files must declare `issueSource`
+  // explicitly (the workflow-ADT migration owns the on-disk rewrite).
+  // Until that on-disk migration lands, existing workflow.json files
+  // without `issueSource` fail loading here with WF-ISSUE-SOURCE-001 by
+  // design (no backward-compat shim per CLAUDE.md "後方互換性不要").
+  const issueSource = parseIssueSource(parsed.issueSource);
+
+  const phases = parsed.phases as WorkflowConfig["phases"];
+  const agents = parsed.agents as WorkflowConfig["agents"];
+
   const config: WorkflowConfig = {
     version: parsed.version as string,
     labelPrefix: parsed.labelPrefix as string | undefined,
-    phases: parsed.phases as WorkflowConfig["phases"],
+    issueSource,
+    phases,
     labelMapping: parsed.labelMapping as WorkflowConfig["labelMapping"],
     labels: parsed.labels as WorkflowConfig["labels"],
-    agents: parsed.agents as WorkflowConfig["agents"],
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: applyDefaultRules(
       parsed.rules as Partial<WorkflowRules> | undefined,
     ),
@@ -99,11 +140,93 @@ export async function loadWorkflow(
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
     handoffs: parsed.handoffs as WorkflowConfig["handoffs"],
     payloadSchema: parsed.payloadSchema as WorkflowConfig["payloadSchema"],
+    projectBinding: parsed.projectBinding as WorkflowConfig["projectBinding"],
   };
 
   validateCrossReferences(config);
 
   return config;
+}
+
+const VALID_ISSUE_SOURCE_KINDS = ["ghProject", "ghRepoIssues", "explicit"];
+const VALID_GH_REPO_MEMBERSHIP = ["any", "unbound"];
+
+/**
+ * Parse and validate the top-level `issueSource` ADT.
+ *
+ * The variant is selected by the `kind` discriminator. Per-variant
+ * required fields are enforced; optional shared fields (`labels` /
+ * `state` / `limit`) are passed through unchanged. See
+ * `agents/docs/design/realistic/12-workflow-config.md` §C.
+ */
+function parseIssueSource(raw: unknown): IssueSource {
+  if (raw === undefined || raw === null || typeof raw !== "object") {
+    throw wfIssueSourceRequired();
+  }
+  const obj = raw as Record<string, unknown>;
+  const kind = obj.kind;
+  if (typeof kind !== "string") {
+    throw wfIssueSourceRequired();
+  }
+
+  switch (kind) {
+    case "ghProject": {
+      const project = obj.project;
+      if (project === undefined || project === null) {
+        throw wfIssueSourceGhProjectMissingProject();
+      }
+      // ProjectRef shape: { owner, number } | { id }. Loader trusts the
+      // disk schema beyond presence — deeper validation belongs in T1.4.
+      return {
+        kind: "ghProject",
+        project: project as IssueSource extends { kind: "ghProject" }
+          ? Extract<IssueSource, { kind: "ghProject" }>["project"]
+          : never,
+        labels: obj.labels as readonly string[] | undefined,
+        state: obj.state as
+          | Extract<IssueSource, { kind: "ghProject" }>["state"]
+          | undefined,
+        limit: obj.limit as number | undefined,
+      };
+    }
+    case "ghRepoIssues": {
+      const membership = obj.projectMembership;
+      if (
+        membership !== undefined &&
+        (typeof membership !== "string" ||
+          !VALID_GH_REPO_MEMBERSHIP.includes(membership))
+      ) {
+        throw wfIssueSourceGhRepoInvalidMembership(
+          membership,
+          VALID_GH_REPO_MEMBERSHIP,
+        );
+      }
+      return {
+        kind: "ghRepoIssues",
+        repo: obj.repo as string | undefined,
+        labels: obj.labels as readonly string[] | undefined,
+        state: obj.state as
+          | Extract<IssueSource, { kind: "ghRepoIssues" }>["state"]
+          | undefined,
+        limit: obj.limit as number | undefined,
+        projectMembership: membership as
+          | Extract<IssueSource, { kind: "ghRepoIssues" }>["projectMembership"]
+          | undefined,
+      };
+    }
+    case "explicit": {
+      const issueIds = obj.issueIds;
+      if (!Array.isArray(issueIds) || issueIds.length === 0) {
+        throw wfIssueSourceExplicitMissingIds();
+      }
+      return {
+        kind: "explicit",
+        issueIds: issueIds as readonly (string | number)[],
+      };
+    }
+    default:
+      throw wfIssueSourceUnknownKind(kind, VALID_ISSUE_SOURCE_KINDS);
+  }
 }
 
 function validateRequiredFields(parsed: Record<string, unknown>): void {
@@ -197,6 +320,94 @@ function validateCrossReferences(config: WorkflowConfig): void {
 
   // 6. labels[] completeness + color format
   validateLabelsSection(config);
+
+  // 7. projectBinding cross-references (T6.eval trigger)
+  validateProjectBinding(config);
+}
+
+/**
+ * Validate the `projectBinding` block when declared.
+ *
+ * When `projectBinding` is absent, T6.eval and the O1/O2 hooks are
+ * no-ops (Invariant I1 in design/13_project_orchestration.md §3), so no
+ * cross-ref check runs. When present, the three identifiers the T6.eval
+ * trigger consumes (`donePhase`, `evalPhase`, `sentinelLabel`) must
+ * resolve against the workflow — otherwise the trigger would silently
+ * no-op or write an unreachable label at runtime. All nine failure
+ * modes are enumerated as WF-PROJECT-00N so reviewers can spot drift
+ * between projectBinding and phases/labels/labelMapping up front.
+ */
+function validateProjectBinding(config: WorkflowConfig): void {
+  const binding = config.projectBinding;
+  if (binding === undefined) return;
+
+  // donePhase must reference a terminal phase that has a labelMapping entry.
+  const donePhase = config.phases[binding.donePhase];
+  if (donePhase === undefined) {
+    throw wfProjectDonePhaseUnknown(binding.donePhase);
+  }
+  if (donePhase.type !== "terminal") {
+    throw wfProjectDonePhaseNotTerminal(binding.donePhase, donePhase.type);
+  }
+  const doneHasLabel = Object.values(config.labelMapping).includes(
+    binding.donePhase,
+  );
+  if (!doneHasLabel) {
+    throw wfProjectDonePhaseNotInLabelMapping(binding.donePhase);
+  }
+
+  // evalPhase must reference an actionable phase with an agent, backed by
+  // a labelMapping entry that lets the trigger actually apply a label.
+  const evalPhase = config.phases[binding.evalPhase];
+  if (evalPhase === undefined) {
+    throw wfProjectEvalPhaseUnknown(binding.evalPhase);
+  }
+  if (evalPhase.type !== "actionable") {
+    throw wfProjectEvalPhaseNotActionable(binding.evalPhase, evalPhase.type);
+  }
+  if (evalPhase.agent === null || evalPhase.agent === undefined) {
+    throw wfProjectEvalPhaseAgentMissing(binding.evalPhase);
+  }
+  const evalHasLabel = Object.values(config.labelMapping).includes(
+    binding.evalPhase,
+  );
+  if (!evalHasLabel) {
+    throw wfProjectEvalPhaseNotInLabelMapping(binding.evalPhase);
+  }
+
+  // planPhase must reference an actionable phase with an agent, backed by
+  // a labelMapping entry so project:init can stamp a label on creation.
+  const planPhase = config.phases[binding.planPhase];
+  if (planPhase === undefined) {
+    throw wfProjectPlanPhaseUnknown(binding.planPhase);
+  }
+  if (planPhase.type !== "actionable") {
+    throw wfProjectPlanPhaseNotActionable(binding.planPhase, planPhase.type);
+  }
+  if (planPhase.agent === null || planPhase.agent === undefined) {
+    throw wfProjectPlanPhaseAgentMissing(binding.planPhase);
+  }
+  const planHasLabel = Object.values(config.labelMapping).includes(
+    binding.planPhase,
+  );
+  if (!planHasLabel) {
+    throw wfProjectPlanPhaseNotInLabelMapping(binding.planPhase);
+  }
+
+  // sentinelLabel must be a declared marker label. `config.labels` being
+  // absent means the workflow never adopted the declarative label model,
+  // so we cannot enforce the role constraint — skip silently. (Same
+  // opt-in shape as validateLabelsSection.)
+  if (config.labels !== undefined) {
+    const spec = config.labels[binding.sentinelLabel];
+    if (spec === undefined) {
+      throw wfProjectSentinelLabelUnknown(binding.sentinelLabel);
+    }
+    const role = spec.role ?? "routing";
+    if (role !== "marker") {
+      throw wfProjectSentinelLabelNotMarker(binding.sentinelLabel, role);
+    }
+  }
 }
 
 const HEX_COLOR_RE = /^[0-9a-fA-F]{6}$/;
@@ -231,8 +442,14 @@ function validateLabelsSection(config: WorkflowConfig): void {
     throw wfLabelSpecMissing(missing.sort());
   }
 
-  // Orphans: declared specs must be referenced somewhere
-  const orphans = [...declaredKeys].filter((l) => !requiredLabels.has(l));
+  // Orphans: routing labels must be referenced somewhere. Marker labels
+  // (role="marker") are identification-only and exempt — they are consumed
+  // by code via label-membership probes (e.g., project-sentinel), not by
+  // phase dispatch. Marker role is opt-in, so the default stays strict.
+  const orphans = [...declaredKeys].filter((l) => {
+    if (requiredLabels.has(l)) return false;
+    return (declaredLabels[l].role ?? "routing") !== "marker";
+  });
   if (orphans.length > 0) {
     throw wfLabelSpecOrphan(orphans.sort());
   }
@@ -266,20 +483,99 @@ function validateAgentPhaseReferences(
     }
   }
 
-  // closeCondition cross-validation
-  if (agent.closeCondition !== undefined) {
-    if (!agent.closeOnComplete) {
+  // closeBinding.condition cross-validation
+  // (replaces legacy closeOnComplete + closeCondition cross-check)
+  const cb = agent.closeBinding;
+  if (cb?.condition !== undefined) {
+    if (cb.primary?.kind === "none" || cb.primary === undefined) {
       throw wfRefCloseConditionWithoutCloseOnComplete(agentId);
     }
     if (
       agent.role === "validator" &&
-      !(agent.closeCondition in agent.outputPhases)
+      !(cb.condition in agent.outputPhases)
     ) {
       throw wfRefInvalidCloseCondition(
         agentId,
-        agent.closeCondition,
+        cb.condition,
         Object.keys(agent.outputPhases),
       );
     }
+  }
+}
+
+/**
+ * Map a workflow `ConfigError` (WF-* code) to its design rule code.
+ *
+ * Mapping is by error-code prefix family per design 12 §F:
+ *  - `WF-LOAD-*` / `WF-SCHEMA-*` → loader-time JSON shape, **W1**
+ *    (closest fit; T1.4 keeps loader-shape errors at W1 since the
+ *    realistic-design rule set begins at W1 = "phases declared").
+ *  - `WF-PHASE-*`     → **W1** (PhaseDecl integrity).
+ *  - `WF-LABEL-*`     → **W5** (labelMapping value ∈ phases).
+ *  - `WF-RULE-*`      → **W1** (workflow-level integrity).
+ *  - `WF-REF-001`     → **W3** (invocation/agent reference).
+ *  - `WF-REF-002..6`  → **W4** (nextPhase / outputPhase references).
+ *  - `WF-PROJECT-*`   → **W6** (projectBinding cross-references).
+ *  - `WF-ISSUE-SOURCE-*` → **W7** (issueSource ADT — keeps the T1.1
+ *    typed throws as W7-tagged ValidationError when surfaced via the
+ *    Decision boundary; loader-level throw path is unchanged).
+ *
+ * TODO[T2.2]: replace this code-prefix mapping with native
+ * Decision-shaped sub-validators inside `validateCrossReferences` so
+ * each rule emits its own ValidationError without re-classification.
+ */
+function mapWorkflowErrorCodeToRule(code: string): ValidationErrorCode {
+  if (code.startsWith("WF-ISSUE-SOURCE-")) return "W7";
+  if (code.startsWith("WF-PROJECT-")) return "W6";
+  if (code === "WF-REF-001") return "W3";
+  if (code.startsWith("WF-REF-")) return "W4";
+  if (code.startsWith("WF-LABEL-")) return "W5";
+  if (code.startsWith("WF-PHASE-")) return "W1";
+  if (code.startsWith("WF-LOAD-")) return "W1";
+  if (code.startsWith("WF-SCHEMA-")) return "W1";
+  if (code.startsWith("WF-RULE-")) return "W1";
+  // Unknown WF-* — fall back to W1 (workflow-level integrity).
+  return "W1";
+}
+
+/**
+ * Decision-shaped sibling of {@link loadWorkflow}.
+ *
+ * The legacy `loadWorkflow` throws on the first cross-reference
+ * failure (fail-fast at the loader). T1.4 wraps that throw into a
+ * single-element `Decision` rejection so the validator chain can
+ * combine it with other Decisions and report all failures at the
+ * boundary. Each emitted `ValidationError` is tagged with its design
+ * rule code (W1..W7) per {@link mapWorkflowErrorCodeToRule}.
+ *
+ * On Accept, the value is the loaded {@link WorkflowConfig} so callers
+ * can chain into downstream validators that need the parsed config.
+ *
+ * @param cwd - Working directory containing the workflow file.
+ * @param workflowPath - Optional override for the relative file path.
+ */
+export async function loadWorkflowAsDecision(
+  cwd: string,
+  workflowPath?: string,
+): Promise<Decision<WorkflowConfig>> {
+  try {
+    const config = await loadWorkflow(cwd, workflowPath);
+    return accept(config);
+  } catch (error: unknown) {
+    if (error instanceof ConfigError) {
+      const code = mapWorkflowErrorCodeToRule(error.code);
+      const ve: ValidationError = validationError(code, error.message, {
+        source: error.configFile ?? "workflow.json",
+        context: { configErrorCode: error.code },
+      });
+      return rejectDecision([ve]);
+    }
+    // Non-ConfigError (e.g., unexpected runtime failure) — surface as
+    // a generic W1 rejection so the boundary still reports it via the
+    // unified Decision shape rather than letting the throw escape.
+    const message = error instanceof Error ? error.message : String(error);
+    return rejectDecision([
+      validationError("W1", message, { source: "workflow.json" }),
+    ]);
   }
 }

@@ -31,17 +31,22 @@ import {
 } from "./artifact-emitter.ts";
 import { InMemorySchemaRegistry } from "./schema-registry.ts";
 import { SubjectStore } from "./subject-store.ts";
-import type {
-  HandoffDeclaration,
-  SubjectPayload,
-  WorkflowConfig,
+import {
+  deriveInvocations,
+  type HandoffDeclaration,
+  type SubjectPayload,
+  type WorkflowConfig,
 } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 import type {
   GitHubClient,
   IssueCriteria,
   IssueDetail,
   IssueListItem,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 
 // =============================================================================
 // Test doubles
@@ -158,6 +163,64 @@ class StubGitHubClient implements GitHubClient {
   ): Promise<void> {
     return Promise.resolve();
   }
+
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve([]);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(_project: ProjectRef, _itemId: string): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 /** Stub dispatcher that records calls and returns a prepared outcome. */
@@ -227,28 +290,32 @@ const DEFAULT_AGENTS: Readonly<Record<string, WorkflowAgentInfo>> = {
 function makeWorkflow(
   handoffs: ReadonlyArray<HandoffDeclaration>,
 ): WorkflowConfig {
+  const phases = {
+    ready: { type: "actionable" as const, priority: 1, agent: "sampleAgent" },
+    done: { type: "terminal" as const },
+  };
+  const agents = {
+    sampleAgent: {
+      role: "transformer" as const,
+      directory: "sampleAgent",
+      outputPhase: "done",
+      fallbackPhase: "done",
+    },
+  };
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     // `labelPrefix` sets Orchestrator.workflowId, which becomes the suffix
     // of the workflow-state / workflow-payload file names. Tests assert
     // against "test" (the workflowId) when reading/writing payloads.
     labelPrefix: "test",
-    phases: {
-      ready: { type: "actionable", priority: 1, agent: "sampleAgent" },
-      done: { type: "terminal" },
-    },
+    phases,
     labelMapping: {
       ready: "ready",
       done: "done",
     },
-    agents: {
-      sampleAgent: {
-        role: "transformer",
-        directory: "sampleAgent",
-        outputPhase: "done",
-        fallbackPhase: "done",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 3,
       cycleDelayMs: 0,

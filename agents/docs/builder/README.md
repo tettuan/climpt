@@ -39,6 +39,7 @@ Agent を作成する際は、以下の順序で進める。
 | ---------------------------------------------------------------- | ------------------------------------ |
 | [reference/agent.yaml](./reference/agent.yaml)                   | agent.json 全フィールド解説          |
 | [reference/steps_registry.yaml](./reference/steps_registry.yaml) | steps_registry.json 全フィールド解説 |
+| [validator-catalog.md](./validator-catalog.md)                   | Validator の phase 契約と配線規則    |
 
 ---
 

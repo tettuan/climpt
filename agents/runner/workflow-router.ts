@@ -12,16 +12,15 @@
  */
 
 import type {
-  PromptStepDefinition,
+  Step,
   StepRegistry,
   TransitionRule,
 } from "../common/step-registry.ts";
-import {
-  inferStepKind,
-  STEP_KIND_ALLOWED_INTENTS,
-} from "../common/step-registry.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
+import type { AdaptationCursor } from "./adaptation-cursor.ts";
+import { AgentAdaptationChainExhaustedError } from "../shared/errors/flow-errors.ts";
 
 /**
  * Result of routing decision.
@@ -35,6 +34,15 @@ export interface RoutingResult {
   reason: string;
   /** Optional warning message (e.g., handoff from initial step) */
   warning?: string;
+  /**
+   * Adaptation override resolved by the cursor for an
+   * `intent === "repeat"` non-closure transition (design 01-self-route-
+   * termination §3.2). The caller threads this into the next iteration's
+   * `prompt-resolver.resolve(stepId, vars, { adaptation })` call so the
+   * declared `adaptationChain` element is materialized as a C3L file
+   * lookup. Absent for any non-repeat intent.
+   */
+  repeatAdaptation?: string;
 }
 
 /**
@@ -73,16 +81,31 @@ export interface WorkflowRouterLogger {
  * Follows the declarative transitions mapping with sensible defaults.
  */
 export class WorkflowRouter {
+  /**
+   * Optional self-route cursor (design 01-self-route-termination §3.1).
+   * When provided, `intent === "repeat"` for non-closure steps advances the
+   * cursor, throws on chain exhaustion, and surfaces the resolved
+   * adaptation via `RoutingResult.repeatAdaptation`. Forward-progress
+   * intents (`next`/`jump`/`handoff`/`closing`/`escalate`) call
+   * `cursor.reset(currentStepId)` so a stale position never bleeds across
+   * a non-repeat transition. Tests that do not exercise self-route
+   * termination may omit it.
+   */
+  private readonly cursor: AdaptationCursor | undefined;
+
   constructor(
     private readonly registry: StepRegistry,
     private readonly logger?: WorkflowRouterLogger,
-  ) {}
+    cursor?: AdaptationCursor,
+  ) {
+    this.cursor = cursor;
+  }
 
   /**
    * Route to next step based on interpretation.
    *
    * Validates intent rules:
-   * - Intent must be allowed for the step's stepKind
+   * - Intent must be allowed for the step's kind
    * - `closing` intent can only come from closure steps
    * - `escalate` routes to verification support steps
    *
@@ -105,6 +128,10 @@ export class WorkflowRouter {
 
     // Handle terminal intents
     if (intent === "closing") {
+      // Forward progress (closure handoff signal). Reset the self-route
+      // cursor for the outgoing stepId so a re-entry on a later run never
+      // resumes the chain mid-position (design 01 §2.2).
+      this.cursor?.reset(currentStepId);
       // Only closure steps can emit closing intent - signal completion
       return {
         nextStepId: currentStepId,
@@ -113,32 +140,34 @@ export class WorkflowRouter {
       };
     }
 
-    if (intent === "abort") {
-      return {
-        nextStepId: currentStepId,
-        signalClosing: true,
-        reason: interpretation.reason ?? "Intent: abort",
-      };
-    }
-
     if (intent === "repeat") {
-      // Closure steps never reach the router — processed by
-      // runClosureIteration → runClosureLoop (Stage 2.5).
+      // Non-closure self-route. Advance the cursor declared on the step's
+      // `adaptationChain` (design 01 §3.2). Closure steps never reach this
+      // path — they are processed by runClosureIteration → runClosureLoop
+      // (Stage 2.5) which performs the same advance.
+      const repeatAdaptation = this.advanceRepeatCursor(currentStepId, stepDef);
       return {
         nextStepId: currentStepId,
         signalClosing: false,
         reason: interpretation.reason ?? "Intent: repeat",
+        ...(repeatAdaptation !== undefined && { repeatAdaptation }),
       };
     }
 
     // Handle escalate - verification step only, route to support step
     if (intent === "escalate") {
+      // Forward progress to support step. Reset cursor so a future return
+      // to this step starts a fresh chain (design 01 §2.2).
+      this.cursor?.reset(currentStepId);
       return this.resolveEscalate(currentStepId, interpretation);
     }
 
     // Handle handoff - work step transitions to closure step
     // Uses transitions config to route to the appropriate closure step
     if (intent === "handoff") {
+      // Forward progress to closure step. Reset cursor for the outgoing
+      // work step (design 01 §2.2).
+      this.cursor?.reset(currentStepId);
       return this.resolveHandoff(currentStepId, interpretation);
     }
 
@@ -147,6 +176,9 @@ export class WorkflowRouter {
       if (!this.validateStepExists(target)) {
         throw srTransJumpTargetNotFound(target, currentStepId);
       }
+      // Forward progress (different step). Reset cursor for the outgoing
+      // stepId.
+      this.cursor?.reset(currentStepId);
       return {
         nextStepId: target,
         signalClosing: false,
@@ -154,8 +186,44 @@ export class WorkflowRouter {
       };
     }
 
-    // For "next" intent, use transitions configuration
+    // For "next" intent, use transitions configuration. resolveFromTransitions
+    // resets the cursor on success (forward progress).
     return this.resolveFromTransitions(currentStepId, interpretation);
+  }
+
+  /**
+   * Advance the self-route cursor for `intent === "repeat"` and return the
+   * adaptation to apply on the next prompt resolve.
+   *
+   * Behavior (design 01 §3.2):
+   * - When no cursor is wired, returns `undefined` (legacy/test path —
+   *   self-route termination is not enforced).
+   * - When the chain is exhausted, throws
+   *   `AgentAdaptationChainExhaustedError`. The `lastAdaptation` field
+   *   names the final declared element so logs/audit show which adaptation
+   *   the run reached before terminating; for a 0-length chain it falls
+   *   back to `"default"` (the framework's structural minimum per §2.3).
+   */
+  private advanceRepeatCursor(
+    currentStepId: string,
+    stepDef: Step | undefined,
+  ): string | undefined {
+    if (!this.cursor) {
+      return undefined;
+    }
+    const chain: readonly string[] = stepDef?.adaptationChain ?? ["default"];
+    const result = this.cursor.next(currentStepId, chain);
+    if (result.kind === "exhausted") {
+      // The cursor has already emitted `chain_exhausted` (§2.5) inside
+      // `next()` before returning the exhausted variant — emit-before-throw
+      // ordering is preserved by construction.
+      throw new AgentAdaptationChainExhaustedError(
+        currentStepId,
+        result.chainLength,
+        result.lastAdaptation,
+      );
+    }
+    return result.adaptation;
   }
 
   /**
@@ -195,6 +263,11 @@ export class WorkflowRouter {
               intent,
             );
           }
+          // Forward progress — reset the self-route cursor for the
+          // outgoing stepId (design 01 §2.2). Same-step `next` (looping
+          // back to itself) also resets per design: a non-repeat intent on
+          // the same step counts as forward progress.
+          this.cursor?.reset(currentStepId);
           return {
             nextStepId: resolved.nextStepId,
             signalClosing: false,
@@ -205,7 +278,8 @@ export class WorkflowRouter {
       }
     }
 
-    // Fall back to default transition logic
+    // Fall back to default transition logic — getDefaultTransition resets
+    // the cursor on its own success path.
     return this.getDefaultTransition(currentStepId, interpretation);
   }
 
@@ -283,6 +357,9 @@ export class WorkflowRouter {
         this.logger?.info(
           `[StepFlow] Prefix substitution: ${currentStepId} -> ${continuationStep} (default transition)`,
         );
+        // Forward progress (design 01 §2.2) — outgoing stepId's cursor is
+        // no longer meaningful.
+        this.cursor?.reset(currentStepId);
         return {
           nextStepId: continuationStep,
           signalClosing: false,
@@ -300,7 +377,7 @@ export class WorkflowRouter {
   /**
    * Get step definition from registry.
    */
-  private getStepDefinition(stepId: string): PromptStepDefinition | undefined {
+  private getStepDefinition(stepId: string): Step | undefined {
     return this.registry.steps[stepId];
   }
 
@@ -318,25 +395,20 @@ export class WorkflowRouter {
    */
   private validateIntentForStepKind(
     stepId: string,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
     intent: string,
   ): void {
-    const stepKind = inferStepKind(stepDef);
-    if (!stepKind) {
+    const kind = stepDef.kind;
+    if (!kind) {
       // Non-flow step (e.g., section.*), skip validation
       return;
     }
 
-    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[stepKind];
-
-    // Note: abort is always allowed (emergency exit)
-    if (intent === "abort") {
-      return;
-    }
+    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[kind];
 
     // Check if intent is allowed for this step kind
     if (!allowedIntents.includes(intent as never)) {
-      throw srIntentNotAllowed(intent, stepKind, stepId, allowedIntents);
+      throw srIntentNotAllowed(intent, kind, stepId, allowedIntents);
     }
   }
 
@@ -358,7 +430,7 @@ export class WorkflowRouter {
     // Warn (but allow) handoff from initial steps per 08_step_flow_design.md Section 7.3:
     // "Runtime logs will warn when handoff is emitted from initial.* step"
     let initialStepWarning: string | undefined;
-    if (stepDef?.c2 === STEP_PHASE.INITIAL) {
+    if (stepDef?.address.c2 === STEP_PHASE.INITIAL) {
       initialStepWarning = `Handoff from initial step '${currentStepId}'. ` +
         `Consider using 'next' to proceed to continuation steps first. ` +
         `See design/08_step_flow_design.md Section 7.3.`;

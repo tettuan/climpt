@@ -18,6 +18,7 @@ import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { validateRegistryShape } from "../common/step-registry/validator.ts";
 import type { AgentDefinition, IterationSummary } from "../src_common/types.ts";
 import type { VerdictType } from "../src_common/types/verdict.ts";
 import type { AgentDependencies } from "./builder.ts";
@@ -31,7 +32,12 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   const raw = await Deno.readTextFile(
     "agents/test-artifacts/responsibility-fixtures/test-steps-registry.json",
   );
-  return JSON.parse(raw) as ExtendedStepsRegistry;
+  // Disk JSON is in the typed Step ADT shape (with `address` aggregate +
+  // populated `kind`). Validate the raw shape, then cast — the same
+  // pattern `loadStepRegistry` uses (no translation).
+  const parsed: unknown = JSON.parse(raw);
+  validateRegistryShape(parsed);
+  return parsed as ExtendedStepsRegistry;
 }
 
 function createTestDefinition(
@@ -51,10 +57,6 @@ function createTestDefinition(
       verdict: {
         type: verdictType,
         config: { maxIterations: 10 },
-      },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
       },
       execution: {},
       logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
@@ -384,7 +386,8 @@ Deno.test("ValidationChain - getClosureStepId finds step from validationSteps", 
         name: "My Closure",
         c2: "retry",
         c3: "mytype",
-        validationConditions: [],
+        preflightConditions: [],
+        postLLMConditions: [],
         onFailure: { action: "retry" },
       },
     },

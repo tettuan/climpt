@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "PVTI_lADOABC123DEF456",
+      "content": { "number": 42, "type": "Issue" }
+    },
+    {
+      "id": "PVTI_lADOABC123DEF789",
+      "content": { "number": 99, "type": "Issue" }
+    },
+    {
+      "id": "PVTI_lADOABC123DRAFT1",
+      "content": { "number": 0, "type": "DraftIssue" }
+    }
+  ]
+}

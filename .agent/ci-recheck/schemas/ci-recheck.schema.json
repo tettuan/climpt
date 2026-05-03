@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ci-recheck.schema.json",
+  "description": "CI Recheck agent step schemas. Closure emits verdict in {green, red, timeout, still-running} for outputPhases routing (workflow-merge.json). still-running falls back via fallbackPhase=ci-pending (Retry Loop, 07_flow_design.md §3.2).",
+
+  "closure.recheck": {
+    "type": "object",
+    "description": "CI recheck closure response — observe CI status, post a recheck comment, emit a verdict that routes phase transition.",
+    "required": ["stepId", "status", "summary", "next_action", "verdict", "comment_body"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "recheck"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["completed", "failed"]
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line human-readable summary of the observed CI state."
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing"],
+            "description": "Closure intent. Always 'closing' for single-iteration ci-recheck."
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["green", "red", "timeout", "still-running"],
+        "description": "Verdict propagated to orchestrator. 'green' = all required checks passed → merge-ready. 'red' = any required check failed → merge-blocked. 'timeout' = CI did not converge within budget → merge-blocked. 'still-running' = CI still pending → fallbackPhase=ci-pending (Retry Loop)."
+      },
+      "comment_body": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Body of the timestamped recheck comment posted to the PR. MUST be non-empty so R5 (state-mutating return-flow) is satisfied even on still-running verdict."
+      }
+    }
+  }
+}

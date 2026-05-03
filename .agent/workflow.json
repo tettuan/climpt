@@ -1,6 +1,10 @@
 {
   "$schema": "../agents/orchestrator/workflow-schema.json",
   "version": "1.0.0",
+  "issueSource": {
+    "kind": "ghRepoIssues",
+    "projectMembership": "unbound"
+  },
   "phases": {
     "impl-pending": {
       "type": "actionable",
@@ -17,11 +21,18 @@
       "priority": 3,
       "agent": "considerer"
     },
+    "blocked": {
+      "type": "actionable",
+      "priority": 4,
+      "agent": "clarifier"
+    },
+    "plan-pending": {
+      "type": "actionable",
+      "priority": 5,
+      "agent": "project-planner"
+    },
     "done": {
       "type": "terminal"
-    },
-    "blocked": {
-      "type": "blocking"
     }
   },
   "labelMapping": {
@@ -29,7 +40,8 @@
     "kind:detail": "detail-pending",
     "kind:consider": "consider-pending",
     "done": "done",
-    "need clearance": "blocked"
+    "need clearance": "blocked",
+    "kind:plan": "plan-pending"
   },
   "labels": {
     "kind:impl": {
@@ -52,41 +64,14 @@
       "color": "d93f0b",
       "description": "Blocked — requires human clearance"
     },
-    "order:1": {
-      "color": "c2e0c6",
-      "description": "Work order seq 1 (higher = sooner)"
+    "kind:plan": {
+      "color": "c5def5",
+      "description": "Planning request (project-planner)"
     },
-    "order:2": {
-      "color": "c2e0c6",
-      "description": "Work order seq 2"
-    },
-    "order:3": {
-      "color": "c2e0c6",
-      "description": "Work order seq 3"
-    },
-    "order:4": {
-      "color": "c2e0c6",
-      "description": "Work order seq 4"
-    },
-    "order:5": {
-      "color": "c2e0c6",
-      "description": "Work order seq 5"
-    },
-    "order:6": {
-      "color": "c2e0c6",
-      "description": "Work order seq 6"
-    },
-    "order:7": {
-      "color": "c2e0c6",
-      "description": "Work order seq 7"
-    },
-    "order:8": {
-      "color": "c2e0c6",
-      "description": "Work order seq 8"
-    },
-    "order:9": {
-      "color": "c2e0c6",
-      "description": "Work order seq 9"
+    "project-sentinel": {
+      "color": "e6e6e6",
+      "description": "Sentinel issue for project lifecycle (planner/evaluator)",
+      "role": "marker"
     }
   },
   "agents": {
@@ -95,7 +80,10 @@
       "directory": "iterator",
       "outputPhase": "done",
       "fallbackPhase": "blocked",
-      "closeOnComplete": true
+      "closeBinding": {
+        "primary": { "kind": "direct" },
+        "cascade": false
+      }
     },
     "considerer": {
       "role": "validator",
@@ -105,8 +93,11 @@
         "handoff-detail": "detail-pending"
       },
       "fallbackPhase": "blocked",
-      "closeOnComplete": true,
-      "closeCondition": "done"
+      "closeBinding": {
+        "primary": { "kind": "direct" },
+        "cascade": false,
+        "condition": "done"
+      }
     },
     "detailer": {
       "role": "validator",
@@ -116,31 +107,46 @@
         "blocked": "blocked"
       },
       "fallbackPhase": "blocked",
-      "closeOnComplete": false
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
+    },
+    "clarifier": {
+      "role": "validator",
+      "directory": "clarifier",
+      "outputPhases": {
+        "ready-to-impl": "impl-pending",
+        "ready-to-consider": "consider-pending"
+      },
+      "fallbackPhase": "blocked",
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
+    },
+    "project-planner": {
+      "role": "transformer",
+      "directory": "project-planner",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
     }
   },
   "handoff": {
     "commentTemplates": {
       "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
-      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}"
+      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}",
+      "clarifierReadyToImpl": "## Clarifier: ready-to-impl\n\n{final_summary}",
+      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}",
+      "iteratorFailed": "<!-- iterator-failure-v1 -->\n## Iterator: failed\n\n{iterator_last_failure}"
     }
   },
-  "prioritizer": {
-    "agent": "triager",
-    "labels": [
-      "order:1",
-      "order:2",
-      "order:3",
-      "order:4",
-      "order:5",
-      "order:6",
-      "order:7",
-      "order:8",
-      "order:9"
-    ]
-  },
   "rules": {
-    "maxCycles": 7,
+    "maxCycles": 11,
     "cycleDelayMs": 30000,
     "maxConsecutivePhases": 3
   },

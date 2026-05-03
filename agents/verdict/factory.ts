@@ -7,10 +7,7 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import { PromptResolver } from "../common/prompt-resolver.ts";
-import {
-  createEmptyRegistry,
-  loadStepRegistry,
-} from "../common/step-registry.ts";
+import { loadStepRegistry } from "../common/step-registry.ts";
 import { join } from "@std/path";
 import type { VerdictHandler, VerdictStepIds } from "./types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
@@ -36,6 +33,9 @@ import {
   acVerdict006CustomHandlerMustExportFactory,
   acVerdict007FailedToLoadCustomHandler,
   acVerdict011DetectGraphRequiresRegistry,
+  acVerdict012EntryStepPairMissing,
+  acVerdict013EntryStepPairMalformed,
+  ConfigError,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -50,27 +50,38 @@ type HandlerFactory = (
 ) => VerdictHandler | Promise<VerdictHandler>;
 
 /**
- * Resolve step IDs from registry's entryStepMapping.
+ * Read the entryStepMapping pair for a verdict type.
  *
- * Derives continuation step ID by replacing "initial." prefix
- * with "continuation." in the entry step ID.
+ * The registry must declare both `initial` and `continuation` step ids
+ * explicitly under entryStepMapping[verdictType]. The runtime never derives
+ * one from the other — see design/04_step_flow_design.md §2.1.
  */
 function resolveStepIds(
   registry: ExtendedStepsRegistry,
   verdictType: string,
-  defaultInitial: string,
 ): VerdictStepIds {
-  const entryStep = registry.entryStepMapping?.[verdictType];
-  if (entryStep) {
-    const continuation = entryStep.startsWith("initial.")
-      ? "continuation." + entryStep.slice("initial.".length)
-      : "continuation." + entryStep.split(".").slice(1).join(".");
-    return { initial: entryStep, continuation };
+  const pair = registry.entryStepMapping?.[verdictType];
+  if (pair === undefined) {
+    throw acVerdict012EntryStepPairMissing(verdictType);
   }
-  const defaultContinuation = defaultInitial.startsWith("initial.")
-    ? "continuation." + defaultInitial.slice("initial.".length)
-    : defaultInitial;
-  return { initial: defaultInitial, continuation: defaultContinuation };
+  if (
+    typeof pair !== "object" || pair === null ||
+    typeof (pair as { initial?: unknown }).initial !== "string" ||
+    typeof (pair as { continuation?: unknown }).continuation !== "string" ||
+    (pair as { initial: string }).initial.length === 0 ||
+    (pair as { continuation: string }).continuation.length === 0
+  ) {
+    throw acVerdict013EntryStepPairMalformed(
+      verdictType,
+      `expected { initial: string, continuation: string }, got ${
+        JSON.stringify(pair)
+      }`,
+    );
+  }
+  return {
+    initial: (pair as { initial: string }).initial,
+    continuation: (pair as { continuation: string }).continuation,
+  };
 }
 
 /**
@@ -215,31 +226,55 @@ registerHandler(
   async (_args, promptResolver, definition, agentDir, _stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
 
-    // Load steps registry for step machine
+    // Load steps registry for step machine via the strict, validating loader.
+    // The loader enforces the new ADT shape (SR-VALID-005) and other invariants;
+    // those errors must propagate. Only the not-found case is remapped to
+    // AC-VERDICT-011 to preserve the verdict-handler-specific guidance.
+    //
+    // T38 / critique-6 N#5: detect:graph is the **only** SR-LOAD-003
+    // caller that requires the registry to exist. We therefore omit
+    // `allowMissing` (defaults to `false` = loud throw from the loader)
+    // and remap the loader's typed `SR-LOAD-003` to the domain-specific
+    // `AC-VERDICT-011` for end-user guidance. All other validation
+    // errors propagate unchanged.
     const registryPath = verdictConfig.registryPath ??
       `${agentDir}/${PATHS.STEPS_REGISTRY}`;
 
+    let registry;
     try {
-      const content = await Deno.readTextFile(registryPath);
-      const registry = JSON.parse(content);
-
-      // Import dynamically to avoid circular dependency at module load time
-      const { StepMachineVerdictHandler } = await import(
-        "./step-machine.ts"
-      );
-
-      const stepMachineHandler = new StepMachineVerdictHandler(
-        registry,
-        verdictConfig.entryStep,
-      );
-      stepMachineHandler.setPromptResolver(promptResolver);
-      return stepMachineHandler;
+      // T29 / critique-5 B#2: schemasDir is type-required for the strict
+      // (default) loader variant. detect:graph callers always live under
+      // `.agent/<name>/`, so schemasDir = `<agentDir>/schemas` is the
+      // canonical location. The loader runs validateIntentSchemaEnums
+      // against this directory; without it the registry cannot be loaded
+      // through the strict path.
+      registry = await loadStepRegistry(definition.name, agentDir, {
+        registryPath,
+        schemasDir: join(agentDir, PATHS.SCHEMAS_DIR),
+      });
     } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
+      // The loader's default loud throw raises ConfigError(SR-LOAD-003).
+      // Remap that to the verdict-specific AC-VERDICT-011 so users get
+      // the detect:graph-aware fix message. Other ConfigErrors
+      // (SR-VALID-005, SR-LOAD-002, SR-INTENT, etc.) propagate
+      // unchanged.
+      if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
         throw acVerdict011DetectGraphRequiresRegistry(registryPath);
       }
       throw error;
     }
+
+    // Import dynamically to avoid circular dependency at module load time
+    const { StepMachineVerdictHandler } = await import(
+      "./step-machine.ts"
+    );
+
+    const stepMachineHandler = new StepMachineVerdictHandler(
+      registry,
+      verdictConfig.entryStep,
+    );
+    stepMachineHandler.setPromptResolver(promptResolver);
+    return stepMachineHandler;
   },
 );
 
@@ -276,16 +311,26 @@ export async function createRegistryVerdictHandler(
 ): Promise<VerdictHandler> {
   const { type: verdictType } = definition.runner.verdict;
 
-  // Create prompt resolver for handlers
-  let registry;
-  try {
-    registry = await loadStepRegistry(definition.name, agentDir, {
-      registryPath: join(agentDir, definition.runner.flow.prompts.registry),
-      validateIntentEnums: false,
-    });
-  } catch {
-    registry = createEmptyRegistry(definition.name);
-  }
+  // Create prompt resolver for handlers.
+  //
+  // T38 / critique-6 N#5: SR-LOAD-003 swallow is owned by the loader
+  // (`allowMissing: true`). Non-`detect:graph` handlers (poll:state,
+  // count:iteration, detect:keyword, count:check, detect:structured,
+  // meta:composite, meta:custom) only need the PromptResolver; an
+  // empty registry suffices because they do not consume the step
+  // graph. All other ConfigError codes — SR-VALID-005 (legacy shape),
+  // SR-LOAD-002 (agentId mismatch), SR-INTENT-*,
+  // SR-VALID-* — propagate from the loader.
+  //
+  // T29 / critique-5 B#2: schemasDir is type-required for the strict
+  // (default) loader variant. The agent's schema directory lives under
+  // `<agentDir>/schemas`; the loader runs validateIntentSchemaEnums
+  // against it as part of strict-by-default validation.
+  const registry = await loadStepRegistry(definition.name, agentDir, {
+    registryPath: join(agentDir, definition.runner.flow.prompts.registry),
+    schemasDir: join(agentDir, PATHS.SCHEMAS_DIR),
+    allowMissing: true,
+  });
   const promptResolver = new PromptResolver(registry, {
     workingDir: Deno.cwd(),
     configSuffix: registry.c1,
@@ -297,27 +342,9 @@ export async function createRegistryVerdictHandler(
     throw acVerdict005UnknownCompletionType(verdictType);
   }
 
-  // Resolve step IDs from entryStepMapping (default varies by verdict type)
-  const defaultInitialMap: Record<string, string> = {
-    "poll:state": "initial.polling",
-    "count:iteration": "initial.iteration",
-    "detect:keyword": "initial.keyword",
-    "count:check": "initial.check",
-    "detect:structured": "initial.structured",
-  };
-  const stepIds = resolveStepIds(
-    registry,
-    verdictType,
-    defaultInitialMap[verdictType] ?? "initial.default",
-  );
-
-  // Log prefix substitution when initial.* was derived to continuation.*
-  if (stepIds.initial.startsWith("initial.")) {
-    // deno-lint-ignore no-console
-    console.info(
-      `[StepFlow] Prefix substitution: ${stepIds.initial} -> ${stepIds.continuation} (verdict: ${verdictType})`,
-    );
-  }
+  // Resolve step IDs: registry must declare entryStepMapping[verdictType]
+  // as { initial, continuation }. No derivation, no defaults.
+  const stepIds = resolveStepIds(registry, verdictType);
 
   return await factory(args, promptResolver, definition, agentDir, stepIds);
 }

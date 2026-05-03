@@ -37,7 +37,8 @@ const testStepConfig: ValidationStepConfig = {
   name: "Test Step",
   c2: "retry",
   c3: "issue",
-  validationConditions: [],
+  preflightConditions: [],
+  postLLMConditions: [],
   onFailure: { action: "retry", maxAttempts: 3 },
 };
 

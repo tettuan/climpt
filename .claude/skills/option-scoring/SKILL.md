@@ -2,11 +2,24 @@
 name: option-scoring
 description: MUST run before recommending when 2+ implementation options are compared. Triggers: '選択肢を並べて', '案を比較', '設計適合度', 'tradeoff', 'which approach'. Scores each option on weighted axes (climpt fixed spine + 2–3 doc-cited derived), outputs a matrix with fit % and DQ rule for w=2 violations, picks the highest non-DQ option with a single reason.
 allowed-tools: [Read, Grep, Glob]
+context: fork
+agent: general-purpose
+model: opus
 ---
 
 # Option Scoring
 
 Score N implementation candidates against a small fixed spine of project principles plus task-specific axes derived from the relevant design doc. Output: comparison matrix + trade-off narrative + recommendation with reversal conditions.
+
+## Execution Context
+
+This skill runs in a forked opus sub-agent and has no access to the caller's conversation history. The caller MUST pass, in the invocation arguments:
+
+- Candidate option sketches (1 sentence each, at the same abstraction level)
+- Derived-axes sources as `file path §section` citations
+- Decision context required to assess fit (the design doc references, the constraint surface, any user-stated weight overrides)
+
+Output follows the Phase 4 narrative + Output Template below (matrix + recommendation).
 
 ## When to Use
 

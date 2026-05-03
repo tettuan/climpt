@@ -1,0 +1,32 @@
+{
+  "agentId": "fixture-legacy",
+  "version": "1.0.0",
+  "c1": "steps",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "initial.issue",
+      "continuation": "initial.issue"
+    }
+  },
+  "steps": {
+    "initial.issue": {
+      "stepId": "initial.issue",
+      "name": "Legacy Initial Issue",
+      "stepKind": "work",
+      "c2": "initial",
+      "c3": "issue",
+      "edition": "default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action"
+      },
+      "transitions": {
+        "next": { "target": null },
+        "repeat": { "target": "initial.issue" }
+      }
+    }
+  }
+}

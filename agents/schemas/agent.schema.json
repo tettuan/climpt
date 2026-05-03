@@ -51,8 +51,7 @@
       "type": "object",
       "required": [
         "flow",
-        "verdict",
-        "boundaries"
+        "verdict"
       ],
       "properties": {
         "flow": {
@@ -216,20 +215,8 @@
     },
     "RunnerBoundariesConfig": {
       "type": "object",
-      "required": ["allowedTools", "permissionMode"],
+      "description": "Sandbox constraints only; allowedTools/permissionMode moved to `.agent/climpt/config/claude.settings.climpt.agents.*.json`.",
       "properties": {
-        "allowedTools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Tools the agent is allowed to use"
-        },
-        "permissionMode": {
-          "type": "string",
-          "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
-          "description": "Claude permission mode"
-        },
         "sandbox": {
           "$ref": "#/definitions/SandboxConfig",
           "description": "Fine-grained sandbox configuration"

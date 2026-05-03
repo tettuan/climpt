@@ -12,8 +12,11 @@ export type {
   BatchOptions,
   BatchResult,
   DispatchResult,
+  GhRepoIssuesMembership,
   HandoffConfig,
   IssueCriteria,
+  IssueQueryState,
+  IssueSource,
   IssueWorkflowState,
   LabelSpec,
   OrchestratorOptions,
@@ -22,6 +25,8 @@ export type {
   PhaseTransitionRecord,
   PhaseType,
   PrioritizerConfig,
+  RepoRef,
+  SubjectRef,
   SubjectStoreConfig,
   TransformerDefinition,
   TransitionResult,
@@ -31,7 +36,7 @@ export type {
 } from "./workflow-types.ts";
 
 // Workflow loader
-export { loadWorkflow } from "./workflow-loader.ts";
+export { loadWorkflow, loadWorkflowAsDecision } from "./workflow-loader.ts";
 
 // Label resolver
 export {
@@ -81,7 +86,13 @@ export { SubjectStore } from "./subject-store.ts";
 export { IssueSyncer } from "./issue-syncer.ts";
 
 // Outbox processor
-export type { OutboxAction, OutboxResult } from "./outbox-processor.ts";
+export type {
+  OutboxAction,
+  OutboxResult,
+  OutboxTrigger,
+  ProjectFieldValue,
+  ProjectRef,
+} from "./outbox-processor.ts";
 export { OutboxProcessor } from "./outbox-processor.ts";
 
 // Prioritizer

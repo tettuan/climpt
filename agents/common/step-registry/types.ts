@@ -25,63 +25,87 @@ export type StepType = "prompt";
 export type StepKind = "work" | "verification" | "closure";
 
 /**
- * Step definition for external prompt resolution (C3L-based)
+ * C3LAddress — 5-tuple aggregate for prompt resolution.
  *
- * Maps a logical step identifier to a prompt file and its requirements.
- * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
+ * Per design 14 §C, prompt selection is *always* a 5-level address resolution:
+ *   {c1}/{c2}/{c3}/f_{edition}[_{adaptation}].md
  *
- * NOTE: This is different from FlowStepDefinition in src_common/types.ts.
- * - PromptStepDefinition (here): C3L-based prompt file resolution
- * - FlowStepDefinition (src_common): Step flow execution control
+ * The address is the *only* selector for a prompt file. CLI flags or runtime
+ * branches that override edition / adaptation are structurally forbidden
+ * (climpt §I anti-list).
+ *
+ * Fields are `readonly` to prepare for Layer 4 (Boot frozen) immutability.
  */
-export interface PromptStepDefinition {
-  /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
-  stepId: string;
+export interface C3LAddress {
+  /** Registry-level constant namespace (e.g. "steps", "dev"). */
+  readonly c1: string;
+  /** Category — step grouping (e.g. "initial", "continuation", "closure"). */
+  readonly c2: string;
+  /** Classification — sub-category (e.g. "issue", "project", "iteration"). */
+  readonly c3: string;
+  /** Edition — step variant (e.g. "default", "preparation", "review"). */
+  readonly edition: string;
+  /** Adaptation — failure-specific overlay (optional). */
+  readonly adaptation?: string;
+}
 
-  /** Human-readable name for logging/debugging */
+/**
+ * RetryPolicy — per-step retry configuration (design 14 §F).
+ *
+ * Retry is expressed as a C3L address overlay: on failure, the step's
+ * `failurePatterns[patternRef]` provides a new edition/adaptation pair that
+ * the step's address is overlaid with for a different prompt file. The retry
+ * is *not* a same-prompt re-invocation.
+ *
+ * Bookkeeping fields (`postLLMConditions`, `preflightConditions`) are names
+ * of validators registered at registry top level. They migrate into
+ * `RetryPolicy` so retry semantics are localized to a single step-level field.
+ */
+export interface RetryPolicy {
+  /** Maximum retry attempts (no exponential backoff; Layer 4 frozen). */
+  readonly maxAttempts: number;
+  /** Validator names run after the LLM response (failure → retry). */
+  readonly postLLMConditions?: readonly string[];
+  /** Validator names run before LLM call (failure → ExecutionError). */
+  readonly preflightConditions?: readonly string[];
+  /** Failure-pattern reference (resolves to registry `failurePatterns[name]`). */
+  readonly onFailure?: { readonly patternRef: string };
+}
+
+/**
+ * Step — typed in-memory shape for a registry step (design 14 §B).
+ *
+ * Required discriminator + aggregate address replaces the legacy 5-field
+ * sprawl (c1/c2/c3/edition/adaptation). `kind` and `address` are required
+ * both on the typed in-memory `Step` and on the on-disk JSON: the loader
+ * rejects the legacy disk shape via `validateRegistryShape` (no synthesis,
+ * no inference). Validators that still read raw JSON via `asRecord(stepDef)`
+ * navigate the same `address` aggregate and are NOT typed by this interface.
+ */
+export interface Step {
+  /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing"). */
+  readonly stepId: string;
+
+  /** Step kind — explicit discriminator for the dual loop (R4). */
+  readonly kind: StepKind;
+
+  /** C3L 5-tuple address — single aggregate for prompt resolution. */
+  readonly address: C3LAddress;
+
+  /** Per-step optional retry overlay (design 14 §F). */
+  readonly retry?: RetryPolicy;
+
+  /** Per-step LLM model override (optional). */
+  readonly model?: ModelRef;
+
+  /** Human-readable name for logging/debugging. */
   name: string;
 
   /**
-   * Step type for categorization
-   * Default: "prompt"
+   * Step type for categorization.
+   * Default: "prompt".
    */
   type?: StepType;
-
-  /**
-   * Step kind for flow taxonomy.
-   *
-   * Determines allowed intents and validation rules:
-   * - work: next/repeat/jump/handoff (generates artifacts)
-   * - verification: next/repeat/jump/escalate (validates work)
-   * - closure: closing/repeat (final validation)
-   *
-   * If not specified, inferred from c2:
-   * - "initial", "continuation" -> "work"
-   * - "verification" -> "verification"
-   * - "closure" -> "closure"
-   */
-  stepKind?: StepKind;
-
-  /**
-   * C3L path component: c2 (e.g., "initial", "continuation", "section")
-   */
-  c2: string;
-
-  /**
-   * C3L path component: c3 (e.g., "issue", "project", "iterate")
-   */
-  c3: string;
-
-  /**
-   * C3L path component: edition (e.g., "default", "preparation", "review")
-   */
-  edition: string;
-
-  /**
-   * C3L path component: adaptation (optional, e.g., "empty", "done")
-   * Used for variant prompts
-   */
-  adaptation?: string;
 
   /**
    * List of UV (user variable) names required by this prompt
@@ -123,8 +147,25 @@ export interface PromptStepDefinition {
   transitions?: Transitions;
 
   /**
+   * `intent: "repeat"` 時に進む C3L adaptation の宣言順列。
+   * cursor は initial 0、`intent=repeat` で +1 し chain[cursor] を読む。
+   * cursor == chain.length に到達した repeat は exhausted となり
+   * AgentAdaptationChainExhaustedError で throw する。
+   *
+   * 未指定時 default: ["default"]
+   *   = 1 要素 = repeat 不可 (cursor=0 で 1 回 default を読み、
+   *     次の repeat で即 exhaust)。
+   *
+   * chain 要素は prompt-resolver が C3L file
+   * (`{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md`) を解決できる識別子で
+   * なければならない (Boot validation S9)。
+   */
+  adaptationChain?: readonly string[];
+
+  /**
    * Override SDK permissionMode for this step.
-   * When set, takes priority over the agent-level boundaries.permissionMode.
+   * When set, takes priority over `permissions.defaultMode` from
+   * `.agent/climpt/config/claude.settings.climpt.agents.*.json`.
    */
   permissionMode?: PermissionMode;
 
@@ -150,6 +191,14 @@ export interface PromptStepDefinition {
 }
 
 /**
+ * Reference to an LLM model (per-step override).
+ *
+ * Currently a thin alias to a model identifier string. Future ToDos may
+ * promote this to a discriminated union (e.g. `{ provider, model, version }`).
+ */
+export type ModelRef = string;
+
+/**
  * Subprocess runner spec for closure steps (Phase 0-c).
  *
  * Declares a command to execute instead of an LLM call. Enables closure
@@ -167,11 +216,14 @@ export interface StepSubprocessRunner {
 /**
  * Allowed intents for structured gate.
  *
+ * Frozen 6-value ADT per design 14 §E. Run-time fatal failure is expressed
+ * as a thrown `ExecutionError` (e.g. `AgentValidationAbortError`), not as
+ * an Intent value (design 16 §C).
+ *
  * - next: Proceed to next step
  * - repeat: Retry current step
  * - jump: Go to a specific step
  * - closing: Signal workflow completion (closure step only)
- * - abort: Terminate workflow with error
  * - escalate: Escalate to verification support step (verification only)
  * - handoff: Hand off to another workflow/agent (work only)
  */
@@ -180,7 +232,6 @@ export type GateIntent =
   | "repeat"
   | "jump"
   | "closing"
-  | "abort"
   | "escalate"
   | "handoff";
 
@@ -249,6 +300,19 @@ export type TransitionRule =
 export type Transitions = Record<string, TransitionRule>;
 
 /**
+ * Entry step pair declared by `entryStepMapping[verdictType]`.
+ *
+ * `initial`      - Step id used at the start of a verdict cycle (Flow Loop iteration 1).
+ * `continuation` - Step id used by the verdict handler's continuation prompt fallback
+ *                  in the Completion Loop. Set equal to `initial` when the agent has no
+ *                  separate continuation step.
+ */
+export interface EntryStepPair {
+  initial: string;
+  continuation: string;
+}
+
+/**
  * Step registry for an agent
  *
  * Contains all step definitions and metadata for the agent.
@@ -279,7 +343,7 @@ export interface StepRegistry {
   pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
-  steps: Record<string, PromptStepDefinition>;
+  steps: Record<string, Step>;
 
   /**
    * Entry step ID for starting execution
@@ -287,32 +351,101 @@ export interface StepRegistry {
   entryStep?: string;
 
   /**
-   * Mode-based entry step mapping.
-   * Allows dynamic entry step selection based on execution mode.
-   * Example: { "issue": "initial.issue", "project": "initial.project" }
+   * Verdict-type to entry step pair.
+   * Each value declares both the initial step (used by Flow Loop iteration 1)
+   * and the continuation step (used by the verdict handler's continuation
+   * prompt fallback in the Completion Loop). Set continuation = initial when
+   * the agent has no separate continuation step.
+   * Example:
+   *   {
+   *     "poll:state":    { "initial": "initial.issue",  "continuation": "continuation.issue" },
+   *     "count:iteration": { "initial": "clarify",      "continuation": "clarify" }
+   *   }
    */
-  entryStepMapping?: Record<string, string>;
+  entryStepMapping?: Record<string, EntryStepPair>;
 }
 
 /**
- * Registry loader options
+ * Registry loader options — discriminated union.
+ *
+ * The shape is split by the `validateIntentEnums` discriminator so the type
+ * system makes the silent-skip cell `(validateIntentEnums:true, schemasDir:absent)`
+ * structurally unrepresentable (T29 / critique-5 B#2).
+ *
+ * - **Strict variant (default)**: omitting `validateIntentEnums` or setting it
+ *   to `true` forces the caller to provide `schemasDir`. The loader runs
+ *   `validateIntentSchemaEnums` against that directory.
+ * - **Opt-out variant**: setting `validateIntentEnums:false` makes
+ *   `schemasDir` optional. The loader skips its own enum validation; the
+ *   caller is then *required* to run `validateIntentSchemaEnums` itself with
+ *   a caller-resolved schemasDir (closure-manager is the only legitimate
+ *   site — it loads the registry before `cwd`-rooted paths are stable, so
+ *   schemasDir resolution must wait until post-load).
+ *
+ * `allowMissing` (T38 / critique-6 N#5, T42 / critique-7 NEW#2) lives on
+ * {@link RegistryLoaderStrictOptions} only — the **single point** where the
+ * "registry file absent on disk" policy is expressed. Default = `false` =
+ * loud `SR-LOAD-003`. Set to `true` only when the caller's domain
+ * legitimately treats an absent registry as "no step graph" and is happy
+ * with an {@link createEmptyRegistry}-shaped result (the loader fabricates
+ * one with `c1 = "steps"` so downstream consumers — `PromptResolver`,
+ * `loadTypedSteps` — can keep operating). All other `ConfigError` codes
+ * (`SR-VALID-*`, `SR-LOAD-002`, `SR-INTENT-*`) propagate regardless of
+ * `allowMissing` — only the not-found case is opt-in remapped.
  */
-export interface RegistryLoaderOptions {
-  /** Custom registry file path (overrides default) */
+export type RegistryLoaderOptions =
+  | RegistryLoaderStrictOptions
+  | RegistryLoaderOptOutOptions;
+
+/**
+ * Strict (default) loader variant: enum validation runs inside the loader,
+ * so the caller MUST hand it a `schemasDir`. The unset / `true` form of the
+ * discriminator both pick this variant.
+ */
+export interface RegistryLoaderStrictOptions {
+  /** Custom registry file path (overrides default). */
   registryPath?: string;
 
-  /** Validate schema on load */
-  validateSchema?: boolean;
+  /**
+   * Strict-by-default enum validation. Omit or set to `true`. Set to `false`
+   * only via the {@link RegistryLoaderOptOutOptions} variant.
+   */
+  validateIntentEnums?: true;
 
   /**
-   * Validate intentSchemaRef enum matches allowedIntents.
-   * Requires schemasDir to be set. Default: false.
+   * Base directory for schema files. Required for the strict variant —
+   * the type system enforces this so `(true, absent)` cannot compile.
    */
-  validateIntentEnums?: boolean;
+  schemasDir: string;
 
   /**
-   * Base directory for schema files.
-   * Required when validateIntentEnums is true.
+   * Opt-in swallow for `SR-LOAD-003` (registry file absent on disk).
+   * Default `false` = loud throw. Set to `true` only when the caller's
+   * domain treats an absent registry as a legitimate empty-step state
+   * (`PromptResolver` factory, `loadTypedSteps`, non-`detect:graph`
+   * verdict handlers). All other error codes propagate.
    */
+  allowMissing?: boolean;
+}
+
+/**
+ * Opt-out variant for callers that perform their own enum validation later
+ * (the only legitimate site is `closure-manager.ts`, which resolves
+ * `schemasDir` from `cwd + .agent/<name>/schemas` after load).
+ *
+ * Note: `allowMissing` is intentionally absent. The opt-out variant has zero
+ * legitimate callers for the SR-LOAD-003 swallow (closure-manager requires
+ * the registry to exist), so `allowMissing` lives only on
+ * {@link RegistryLoaderStrictOptions}. Removing it here keeps the API surface
+ * to actual demand (CLAUDE.md "fallback minimum" / "no backward-compat").
+ */
+export interface RegistryLoaderOptOutOptions {
+  /** Custom registry file path (overrides default). */
+  registryPath?: string;
+
+  /** Explicit opt-out — caller commits to running enum validation later. */
+  validateIntentEnums: false;
+
+  /** Optional in this variant; the loader will not consult it. */
   schemasDir?: string;
 }

@@ -1,0 +1,35 @@
+{
+  "agentId": "fixture-work",
+  "version": "1.0.0",
+  "c1": "steps",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "initial.issue",
+      "continuation": "initial.issue"
+    }
+  },
+  "steps": {
+    "initial.issue": {
+      "stepId": "initial.issue",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "issue",
+        "edition": "default"
+      },
+      "name": "Initial Issue Work",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action"
+      },
+      "transitions": {
+        "next": { "target": null },
+        "repeat": { "target": "initial.issue" }
+      }
+    }
+  }
+}

@@ -42,10 +42,6 @@ Agent の振る舞いを定義。変更頻度: 低。
       "type": "detect:keyword",
       "config": { "verdictKeyword": "SESSION_COMPLETE" }
     },
-    "boundaries": {
-      "allowedTools": ["Read", "Write", "Edit", "Bash"],
-      "permissionMode": "acceptEdits"
-    },
     "logging": {
       "directory": "tmp/logs/agents/session-agent",
       "format": "jsonl"
@@ -61,10 +57,6 @@ Agent の振る舞いを定義。変更頻度: 低。
 ```json
 {
   "version": "1.0.0",
-  "overrides": {
-    "runner.boundaries.permissionMode": "plan",
-    "runner.boundaries.allowedTools": ["Read", "Glob", "Grep"]
-  },
   "runner": {
     "logging": {
       "maxFiles": 50
@@ -72,6 +64,33 @@ Agent の振る舞いを定義。変更頻度: 低。
   }
 }
 ```
+
+## Claude Agent SDK settings
+
+ツール許可リストと `permissionMode` の既定値は、SDK-native の settings
+ファイルで管理する。Runner が Agent 起動時に読み込み、 `queryOptions.settings`
+として SDK に渡すと同時に `canUseTool` の hard-allow 判定に使用する。
+
+```
+.agent/climpt/config/
+├── claude.settings.climpt.agents.json                 # 全 Agent 共有デフォルト
+└── claude.settings.climpt.agents.{agent-name}.json    # 個別 Agent 用（優先）
+```
+
+ファイル形式（抜粋）:
+
+```json
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": ["Read", "Glob", "Grep"],
+    "defaultMode": "default"
+  }
+}
+```
+
+優先順位: 個別 Agent ファイルが存在すれば使用、無ければ共有デフォルトを使用。
+どちらも無ければ起動時エラー（fallback 最小限の原則）。
 
 ## CLI 引数
 

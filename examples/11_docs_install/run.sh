@@ -26,7 +26,7 @@ main() {
   if [[ "$file_count" -eq 0 ]]; then
     error "FAIL: ${DOCS_DIR} contains no files"; return 1
   fi
-  # Create sentinel so 53_clean knows this was example-installed
+  # Create sentinel so 99_clean knows this was example-installed
   touch "${DOCS_DIR}/.climpt-installed"
   success "PASS: ${DOCS_DIR} exists with ${file_count} files"
 }

@@ -6,10 +6,13 @@ import type {
   ValidatorDefinition,
   WorkflowConfig,
 } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 import {
   computeLabelChanges,
   computeTransition,
+  hasPhaseLabel,
   renderTemplate,
+  resolvePhaseLabel,
 } from "./phase-transition.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
 
@@ -55,9 +58,11 @@ function makeConfig(
 ): WorkflowConfig {
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     phases: {},
     labelMapping,
     agents: {},
+    invocations: [],
     rules: { maxCycles: 5, cycleDelayMs: 5000 },
   };
 }
@@ -195,39 +200,67 @@ Deno.test("computeLabelChanges - no label mapping for target → empty add", () 
 });
 
 // --- computeLabelChanges: terminal + prioritizer labels ---
+//
+// These tests target the contract that on terminal transitions the
+// prioritizer's order:N labels are released so seq capacity is freed,
+// and that on non-terminal / blocking transitions they are preserved.
+//
+// T2.4 note: the in-tree `.agent/workflow.json` no longer ships a
+// `prioritizer` block (the prioritizer agent isn't on disk yet — Boot
+// would A2-reject it under the realistic-design wiring). The fixture
+// below is a synthetic, prioritizer-bearing WorkflowConfig built for
+// these tests so the contract still gets exercised.
+
+function makeConfigWithPrioritizer(): WorkflowConfig {
+  const base = makeConfig({
+    "kind:impl": "impl-pending",
+    "kind:consider": "consider-pending",
+    "kind:detail": "detail-pending",
+    "done": "done",
+    "need clearance": "blocked",
+  });
+  return {
+    ...base,
+    phases: {
+      "impl-pending": { type: "actionable", priority: 1, agent: "iterator" },
+      "consider-pending": {
+        type: "actionable",
+        priority: 2,
+        agent: "considerer",
+      },
+      "detail-pending": { type: "actionable", priority: 3, agent: "detailer" },
+      "blocked": { type: "actionable", priority: 4, agent: "clarifier" },
+      "done": { type: "terminal" },
+    },
+    prioritizer: {
+      agent: "prioritizer",
+      labels: ["order:1", "order:2", "order:3"],
+    },
+  };
+}
 
 Deno.test(
   "computeLabelChanges - terminal transition strips prioritizer labels (contract)",
-  async () => {
-    // Source of truth: .agent/workflow.json. done is terminal and
-    // prioritizer.labels enumerates order:N. On terminal transitions the
-    // prioritizer labels must be released so seq capacity is freed.
-    const config = await loadWorkflow(REPO_ROOT);
-    const doneLabel = findLabelForPhase(config, "done");
-    const implLabel = findLabelForPhase(config, "impl-pending");
-    const orderLabels = config.prioritizer?.labels ?? [];
-    if (orderLabels.length === 0) {
-      throw new Error(
-        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty. " +
-          "Fix: keep order:N enumerated in prioritizer.labels or update this test.",
-      );
-    }
-    const orderLabel = orderLabels[0];
+  () => {
+    // Synthetic config: done is terminal and prioritizer.labels enumerates
+    // order:N. On terminal transitions the prioritizer labels must be
+    // released so seq capacity is freed.
+    const config = makeConfigWithPrioritizer();
 
     const result = computeLabelChanges(
-      [implLabel, orderLabel, "enhancement"],
-      config.labelMapping[doneLabel],
+      ["kind:impl", "order:1", "enhancement"],
+      "done", // target phase
       config,
     );
 
     assertEquals(
-      result.labelsToRemove.includes(implLabel),
+      result.labelsToRemove.includes("kind:impl"),
       true,
       "Terminal transition must remove the current kind:* label. " +
         "Fix: labelMapping keys are always stripped regardless of target type.",
     );
     assertEquals(
-      result.labelsToRemove.includes(orderLabel),
+      result.labelsToRemove.includes("order:1"),
       true,
       "Terminal transition must remove prioritizer labels (order:N) so seq " +
         "capacity is released. Fix: phase-transition.computeLabelChanges must " +
@@ -245,36 +278,27 @@ Deno.test(
 
 Deno.test(
   "computeLabelChanges - non-terminal transition preserves prioritizer labels (3-stage pipe invariant)",
-  async () => {
+  () => {
     // Invariant: a subject traversing consider -> detail -> impl keeps one
     // order:N slot (workflow-issue-states.md §"Order seq の消費と解放").
     // Only terminal transitions release it.
-    const config = await loadWorkflow(REPO_ROOT);
-    const considerLabel = findLabelForPhase(config, "consider-pending");
-    const detailLabel = findLabelForPhase(config, "detail-pending");
-    const orderLabels = config.prioritizer?.labels ?? [];
-    if (orderLabels.length === 0) {
-      throw new Error(
-        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty.",
-      );
-    }
-    const orderLabel = orderLabels[0];
+    const config = makeConfigWithPrioritizer();
 
     const result = computeLabelChanges(
-      [considerLabel, orderLabel],
-      config.labelMapping[detailLabel],
+      ["kind:consider", "order:1"],
+      "detail-pending", // target phase
       config,
     );
 
     assertEquals(
-      result.labelsToRemove.includes(orderLabel),
+      result.labelsToRemove.includes("order:1"),
       false,
       "consider -> detail (both actionable) must preserve order:N. " +
         "Fix: only terminal transitions may strip prioritizer labels.",
     );
     assertEquals(
       result.labelsToRemove,
-      [considerLabel],
+      ["kind:consider"],
       "Non-terminal transition must only rewrite the kind:* label.",
     );
   },
@@ -282,22 +306,18 @@ Deno.test(
 
 Deno.test(
   "computeLabelChanges - blocking transition preserves prioritizer labels",
-  async () => {
+  () => {
     // S4.blocked retains kind:* + order:N per design (workflow-issue-states.md).
-    const config = await loadWorkflow(REPO_ROOT);
-    const implLabel = findLabelForPhase(config, "impl-pending");
-    const blockedLabel = findLabelForPhase(config, "blocked");
-    const orderLabels = config.prioritizer?.labels ?? [];
-    const orderLabel = orderLabels[0];
+    const config = makeConfigWithPrioritizer();
 
     const result = computeLabelChanges(
-      [implLabel, orderLabel],
-      config.labelMapping[blockedLabel],
+      ["kind:impl", "order:1"],
+      "blocked", // target phase
       config,
     );
 
     assertEquals(
-      result.labelsToRemove.includes(orderLabel),
+      result.labelsToRemove.includes("order:1"),
       false,
       "blocking transition must preserve order:N (blocked issues still " +
         "occupy their seq slot). Fix: phase type check must be strictly " +
@@ -538,6 +558,102 @@ Deno.test(
     );
   },
 );
+
+// --- resolvePhaseLabel ---
+
+Deno.test("resolvePhaseLabel - returns bare label when labelPrefix is unset", () => {
+  const config = makeConfig();
+  assertEquals(
+    resolvePhaseLabel(config, "complete"),
+    "done",
+    "labelMapping[done] -> complete must yield bare 'done' without prefix.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - prepends labelPrefix when set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    resolvePhaseLabel(config, "complete"),
+    "docs:done",
+    "labelPrefix='docs' must turn the bare 'done' label into 'docs:done'. " +
+      "Fix: phase-transition.resolvePhaseLabel must apply labelPrefix.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - returns null when no labelMapping entry targets the phase", () => {
+  const config = makeConfig();
+  assertEquals(
+    resolvePhaseLabel(config, "eval-pending"),
+    null,
+    "Phases not referenced by labelMapping must yield null so callers can no-op " +
+      "instead of fabricating a fake label.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - first labelMapping entry wins on duplicate phase targets", () => {
+  const config = makeConfig({
+    "ready": "implementation",
+    "kickoff": "implementation",
+    "done": "complete",
+  });
+  assertEquals(
+    resolvePhaseLabel(config, "implementation"),
+    "ready",
+    "Insertion order is the documented tiebreaker (mirrors computeLabelChanges).",
+  );
+});
+
+// --- hasPhaseLabel ---
+
+Deno.test("hasPhaseLabel - bare label matches when labelPrefix is unset", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel(["done"], config, "complete"),
+    true,
+    "Bare 'done' must resolve to phase 'complete' under no-prefix workflow.",
+  );
+});
+
+Deno.test("hasPhaseLabel - prefixed label matches when labelPrefix is set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    hasPhaseLabel(["docs:done"], config, "complete"),
+    true,
+    "labelPrefix='docs' must accept 'docs:done' as the done-phase label. " +
+      "Fix: hasPhaseLabel must stripPrefix before consulting labelMapping.",
+  );
+});
+
+Deno.test("hasPhaseLabel - bare label is rejected when labelPrefix is set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    hasPhaseLabel(["done"], config, "complete"),
+    false,
+    "Without the 'docs:' prefix the label belongs to a different namespace " +
+      "and must not match. This guards against cross-workflow leakage.",
+  );
+});
+
+Deno.test("hasPhaseLabel - returns false for empty input", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel([], config, "complete"),
+    false,
+    "Empty label set must return false (non-vacuous: no label = no phase).",
+  );
+});
+
+Deno.test("hasPhaseLabel - unrelated labels are ignored", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel(["enhancement", "good first issue"], config, "complete"),
+    false,
+    "Labels outside labelMapping must be ignored, not matched by accident.",
+  );
+});
 
 /**
  * Finds the label whose mapping targets the given phase.

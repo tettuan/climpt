@@ -218,8 +218,10 @@ agent can use. Only tools listed here are available to Claude during execution.
 - The SDK init message shows all registered tools (22+), but the `allowedTools`
   restriction is enforced at tool usage time, not at initialization
 - Climpt agents apply additional step-kind-based filtering via
-  `filterAllowedTools()` — boundary tools (e.g., `githubIssueClose`) are
-  automatically removed during work/verification steps
+  `isBashCommandAllowed()` — GitHub write subcommands (e.g., `gh issue
+  edit`,
+  `gh pr merge`, `gh release create`, `gh api`) are blocked in every step kind.
+  The Boundary Hook is the single write path.
 - To structurally guarantee tool restrictions, always define `allowedTools`
   explicitly rather than relying solely on `permissionMode`
 

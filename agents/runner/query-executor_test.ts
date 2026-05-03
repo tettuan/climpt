@@ -19,6 +19,7 @@ import {
 import type { QueryExecutorDeps } from "./query-executor.ts";
 import type { RuntimeContext } from "../src_common/types.ts";
 import type { SchemaManager } from "./schema-manager.ts";
+import type { LoadedAgentSettings } from "../config/settings-loader.ts";
 
 const logger = new BreakdownLogger("query-executor-test");
 
@@ -72,6 +73,26 @@ function createMockContext(
     promptResolver: {} as RuntimeContext["promptResolver"],
     logger: mockLogger ?? createMockLogger(),
     cwd: "/tmp/claude/test",
+  };
+}
+
+/**
+ * Minimal valid {@link LoadedAgentSettings} stub for QueryExecutor deps.
+ *
+ * Provides the Plan Z invariants the runner relies on — a present
+ * `permissions` object with an (empty by default) `allow` list and a
+ * `defaultMode` — without reading any real file. Tests that exercise the
+ * tool-allow path should override `permissions.allow`.
+ */
+function createTestSettings(): LoadedAgentSettings {
+  return {
+    sourcePath: "/tmp/claude/test/.agent/climpt/config/stub.json",
+    settings: {
+      permissions: {
+        allow: [],
+        defaultMode: "default",
+      },
+    },
   };
 }
 
@@ -433,14 +454,11 @@ Deno.test("executeQuery: short-circuits when schemaResolutionFailed is true", as
           },
         },
         verdict: { type: "poll:state" as const, config: { maxIterations: 5 } },
-        boundaries: {
-          allowedTools: [],
-          permissionMode: "plan",
-        },
         execution: {},
         logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
       },
     },
+    settings: createTestSettings(),
     getContext: () => ctx,
     getStepsRegistry: () => null,
     getVerboseLogger: () => null,
@@ -514,14 +532,11 @@ Deno.test({
             type: "poll:state" as const,
             config: { maxIterations: 5 },
           },
-          boundaries: {
-            allowedTools: [],
-            permissionMode: "plan",
-          },
           execution: {},
           logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
         },
       },
+      settings: createTestSettings(),
       getContext: () => ctx,
       getStepsRegistry: () => null,
       getVerboseLogger: () => null,
@@ -588,14 +603,11 @@ Deno.test({
             type: "poll:state" as const,
             config: { maxIterations: 5 },
           },
-          boundaries: {
-            allowedTools: [],
-            permissionMode: "plan",
-          },
           execution: {},
           logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
         },
       },
+      settings: createTestSettings(),
       getContext: () => ctx,
       getStepsRegistry: () => null,
       getVerboseLogger: () => null,

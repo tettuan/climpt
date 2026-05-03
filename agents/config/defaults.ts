@@ -33,10 +33,6 @@ const DEFAULTS = {
         maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
       },
     },
-    boundaries: {
-      permissionMode: "plan" as const,
-      allowedTools: ["*"],
-    },
     integrations: {
       github: {
         enabled: true,
@@ -113,17 +109,13 @@ export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
           ...rawVerdictConfig,
         },
       },
-      boundaries: {
-        allowedTools: (rawBoundaries.allowedTools as string[]) ??
-          DEFAULTS.runner.boundaries.allowedTools,
-        permissionMode: (rawBoundaries
-          .permissionMode as AgentDefinition["runner"]["boundaries"][
-            "permissionMode"
-          ]) ??
-          DEFAULTS.runner.boundaries.permissionMode,
-        sandbox: rawBoundaries
-          .sandbox as AgentDefinition["runner"]["boundaries"]["sandbox"],
-      },
+      boundaries: rawBoundaries.sandbox !== undefined
+        ? {
+          sandbox: rawBoundaries.sandbox as NonNullable<
+            AgentDefinition["runner"]["boundaries"]
+          >["sandbox"],
+        }
+        : undefined,
       integrations: {
         github: (rawIntegrations
           .github as AgentDefinition["runner"]["integrations"] extends

@@ -26,12 +26,18 @@ function validFlowRegistry(): Record<string, unknown> {
     agentId: "test",
     version: "1.0.0",
     entryStepMapping: {
-      issue: "initial.issue",
+      issue: { initial: "initial.issue", continuation: "initial.issue" },
     },
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "continuation.issue" },
           repeat: { target: "initial.issue" },
@@ -39,7 +45,13 @@ function validFlowRegistry(): Record<string, unknown> {
       },
       "continuation.issue": {
         stepId: "continuation.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
           repeat: { target: "continuation.issue" },
@@ -47,7 +59,13 @@ function validFlowRegistry(): Record<string, unknown> {
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.issue" },
@@ -81,7 +99,8 @@ Deno.test("flow-validator - orphan step produces warning not error", () => {
   // Add a disconnected step
   steps["orphan.step"] = {
     stepId: "orphan.step",
-    c2: "initial",
+    kind: "work",
+    address: { c1: "steps", c2: "initial", c3: "default", edition: "default" },
     transitions: {},
   };
 
@@ -104,7 +123,7 @@ Deno.test("flow-validator - section step is not flagged as orphan", () => {
   // Add a section step (not connected to transitions)
   steps["section.context"] = {
     stepId: "section.context",
-    c2: "section",
+    address: { c1: "steps", c2: "section", c3: "default", edition: "default" },
     transitions: {},
   };
 
@@ -132,7 +151,13 @@ Deno.test("flow-validator - unreachable closure produces error", () => {
   // Make continuation.issue terminal (no path to closure)
   steps["continuation.issue"] = {
     stepId: "continuation.issue",
-    c2: "continuation",
+    kind: "work",
+    address: {
+      c1: "steps",
+      c2: "continuation",
+      c3: "default",
+      edition: "default",
+    },
     transitions: {
       next: { target: null },
     },
@@ -152,7 +177,13 @@ Deno.test("flow-validator - closure exists but unreachable produces error", () =
   // Disconnect continuation from closure -- make it only self-loop
   steps["continuation.issue"] = {
     stepId: "continuation.issue",
-    c2: "continuation",
+    kind: "work",
+    address: {
+      c1: "steps",
+      c2: "continuation",
+      c3: "default",
+      edition: "default",
+    },
     transitions: {
       next: { target: "continuation.issue" },
       repeat: { target: "continuation.issue" },
@@ -210,11 +241,19 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
   // verification: next, repeat, jump, escalate
   // closure: closing, repeat
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "step.work" },
+    entryStepMapping: {
+      issue: { initial: "step.work", continuation: "step.work" },
+    },
     steps: {
       "step.work": {
         stepId: "step.work",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "step.verification" },
           repeat: { target: "step.work" },
@@ -224,7 +263,13 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
       },
       "step.verification": {
         stepId: "step.verification",
-        c2: "verification",
+        kind: "verification",
+        address: {
+          c1: "steps",
+          c2: "verification",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "step.closure" },
           repeat: { target: "step.verification" },
@@ -234,7 +279,13 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
       },
       "step.closure": {
         stepId: "step.closure",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "step.closure" },
@@ -292,34 +343,58 @@ Deno.test("flow-validator - registry with empty steps reports closure error", ()
 Deno.test("flow-validator - multiple entry points reaching different closures", () => {
   const registry: Record<string, unknown> = {
     entryStepMapping: {
-      issue: "initial.issue",
-      project: "initial.project",
+      issue: { initial: "initial.issue", continuation: "initial.issue" },
+      project: { initial: "initial.project", continuation: "initial.project" },
     },
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
       },
       "initial.project": {
         stepId: "initial.project",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.project" },
         },
       },
       "closure.project": {
         stepId: "closure.project",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -343,14 +418,26 @@ Deno.test("flow-validator - entryStep (singular) reaches closure", () => {
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -370,14 +457,26 @@ Deno.test("flow-validator - entryStep pointing to non-existent step is skipped",
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -403,11 +502,19 @@ Deno.test("flow-validator - entryStep pointing to non-existent step is skipped",
 
 Deno.test("flow-validator/P1-1 - work step with closing transition produces error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -433,11 +540,19 @@ Deno.test("flow-validator/P1-1 - work step with closing transition produces erro
 
 Deno.test("flow-validator/P1-1 - closure step with next transition produces error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "close.step" },
+    entryStepMapping: {
+      issue: { initial: "close.step", continuation: "close.step" },
+    },
     steps: {
       "close.step": {
         stepId: "close.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "close.step" },
           closing: { target: null },
@@ -464,11 +579,19 @@ Deno.test("flow-validator/P1-1 - closure step with next transition produces erro
 
 Deno.test("flow-validator/P1-1 - valid work step with next and repeat produces no stepKind error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "work.step2" },
           repeat: { target: "work.step" },
@@ -477,14 +600,26 @@ Deno.test("flow-validator/P1-1 - valid work step with next and repeat produces n
       },
       "work.step2": {
         stepId: "work.step2",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.step" },
@@ -503,11 +638,19 @@ Deno.test("flow-validator/P1-1 - valid work step with next and repeat produces n
 
 Deno.test("flow-validator/P1-1 - valid closure step with closing and repeat produces no stepKind error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "closure.step" },
+    entryStepMapping: {
+      issue: { initial: "closure.step", continuation: "closure.step" },
+    },
     steps: {
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.step" },
@@ -529,11 +672,19 @@ Deno.test("flow-validator/P1-1 - valid closure step with closing and repeat prod
 
 Deno.test("flow-validator/P1-2 - allowedIntents has handoff but no handoff transition produces error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat", "handoff"],
           intentSchemaRef: "#/test",
@@ -547,7 +698,13 @@ Deno.test("flow-validator/P1-2 - allowedIntents has handoff but no handoff trans
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -573,11 +730,19 @@ Deno.test("flow-validator/P1-2 - allowedIntents has handoff but no handoff trans
 
 Deno.test("flow-validator/P1-2 - transition defined but not in allowedIntents produces dead transition warning", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat"],
           intentSchemaRef: "#/test",
@@ -591,7 +756,13 @@ Deno.test("flow-validator/P1-2 - transition defined but not in allowedIntents pr
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -618,11 +789,19 @@ Deno.test("flow-validator/P1-2 - transition defined but not in allowedIntents pr
 
 Deno.test("flow-validator/P1-2 - aligned allowedIntents and transitions produce no cross-validation issues", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat", "handoff"],
           intentSchemaRef: "#/test",
@@ -636,7 +815,13 @@ Deno.test("flow-validator/P1-2 - aligned allowedIntents and transitions produce 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -663,11 +848,19 @@ Deno.test("flow-validator/P1-2 - aligned allowedIntents and transitions produce 
 
 Deno.test("flow-validator/P1-3 - work step with escalate transition produces error mentioning verification", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
           escalate: { target: "work.step" },
@@ -675,7 +868,13 @@ Deno.test("flow-validator/P1-3 - work step with escalate transition produces err
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -705,11 +904,19 @@ Deno.test("flow-validator/P1-3 - work step with escalate transition produces err
 
 Deno.test("flow-validator/P1-4 - initial step with handoff produces warning mentioning initial", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "init.step" },
+    entryStepMapping: {
+      issue: { initial: "init.step", continuation: "init.step" },
+    },
     steps: {
       "init.step": {
         stepId: "init.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "init.step" },
           handoff: { target: "closure.step" },
@@ -717,7 +924,13 @@ Deno.test("flow-validator/P1-4 - initial step with handoff produces warning ment
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -775,11 +988,19 @@ Deno.test("flow-validator/integration - iterator steps_registry validates withou
 
 Deno.test("flow-validator/P2-2 - transition target that does not exist produces error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "nonexistent.step" },
           handoff: { target: "closure.step" },
@@ -787,7 +1008,13 @@ Deno.test("flow-validator/P2-2 - transition target that does not exist produces 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -812,11 +1039,19 @@ Deno.test("flow-validator/P2-2 - transition target that does not exist produces 
 
 Deno.test("flow-validator/P2-2 - all targets exist produces no dangling target error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "work.step" },
           handoff: { target: "closure.step" },
@@ -824,7 +1059,13 @@ Deno.test("flow-validator/P2-2 - all targets exist produces no dangling target e
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -855,27 +1096,45 @@ Deno.test("flow-validator/P2-1 - entry point that cannot reach closure produces 
   // Two entry points: "issue" reaches closure, "project" does not
   const registry: Record<string, unknown> = {
     entryStepMapping: {
-      issue: "work.issue",
-      project: "work.project",
+      issue: { initial: "work.issue", continuation: "work.issue" },
+      project: { initial: "work.project", continuation: "work.project" },
     },
     steps: {
       "work.issue": {
         stepId: "work.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
       },
       "work.project": {
         stepId: "work.project",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // Only self-loop, no path to any closure step
           next: { target: "work.project" },
@@ -913,27 +1172,45 @@ Deno.test("flow-validator/P2-1 - entry point that cannot reach closure produces 
 Deno.test("flow-validator/P2-1 - both entry points reach closure produces no per-entry error", () => {
   const registry: Record<string, unknown> = {
     entryStepMapping: {
-      issue: "work.issue",
-      project: "work.project",
+      issue: { initial: "work.issue", continuation: "work.issue" },
+      project: { initial: "work.project", continuation: "work.project" },
     },
     steps: {
       "work.issue": {
         stepId: "work.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.shared" },
         },
       },
       "work.project": {
         stepId: "work.project",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.shared" },
         },
       },
       "closure.shared": {
         stepId: "closure.shared",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -962,18 +1239,32 @@ Deno.test("flow-validator/P2-1 - both entry points reach closure produces no per
 
 Deno.test("flow-validator/P2-5 - orphan step with structuredGate produces error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -981,7 +1272,13 @@ Deno.test("flow-validator/P2-5 - orphan step with structuredGate produces error"
       // Orphan step with structuredGate -> should be error
       "orphan.gated": {
         stepId: "orphan.gated",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat"],
           intentSchemaRef: "#/test",
@@ -1012,18 +1309,32 @@ Deno.test("flow-validator/P2-5 - orphan step with structuredGate produces error"
 
 Deno.test("flow-validator/P2-5 - orphan step without structuredGate produces warning", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1031,7 +1342,13 @@ Deno.test("flow-validator/P2-5 - orphan step without structuredGate produces war
       // Orphan step without structuredGate -> should be warning only
       "orphan.simple": {
         stepId: "orphan.simple",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {},
       },
     },
@@ -1068,11 +1385,19 @@ Deno.test("flow-validator/P2-5 - orphan step without structuredGate produces war
 
 Deno.test("flow-validator/P2-3 - work step next targeting closure step produces boundary error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // next from work should target work/verification, NOT closure
           next: { target: "closure.step" },
@@ -1081,7 +1406,13 @@ Deno.test("flow-validator/P2-3 - work step next targeting closure step produces 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1108,11 +1439,19 @@ Deno.test("flow-validator/P2-3 - work step next targeting closure step produces 
 
 Deno.test("flow-validator/P2-3 - work step handoff targeting work step produces boundary error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.a" },
+    entryStepMapping: {
+      issue: { initial: "work.a", continuation: "work.a" },
+    },
     steps: {
       "work.a": {
         stepId: "work.a",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // handoff from work should target closure, NOT work
           handoff: { target: "work.b" },
@@ -1120,14 +1459,26 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting work step produces 
       },
       "work.b": {
         stepId: "work.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1153,11 +1504,19 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting work step produces 
 
 Deno.test("flow-validator/P2-3 - work step handoff targeting closure step produces no boundary error", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
           repeat: { target: "work.step" },
@@ -1165,7 +1524,13 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting closure step produc
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1194,11 +1559,19 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting closure step produc
 
 Deno.test("flow-validator/P2-4a - next self-loop produces warning", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // next targeting self is suspicious
           next: { target: "work.step" },
@@ -1207,7 +1580,13 @@ Deno.test("flow-validator/P2-4a - next self-loop produces warning", () => {
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1232,11 +1611,19 @@ Deno.test("flow-validator/P2-4a - next self-loop produces warning", () => {
 
 Deno.test("flow-validator/P2-4a - repeat self-loop produces no warning", () => {
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "work.step" },
+    entryStepMapping: {
+      issue: { initial: "work.step", continuation: "work.step" },
+    },
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // repeat targeting self is by design (retry pattern)
           repeat: { target: "work.step" },
@@ -1245,7 +1632,13 @@ Deno.test("flow-validator/P2-4a - repeat self-loop produces no warning", () => {
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1275,11 +1668,19 @@ Deno.test("flow-validator/P2-4b - cycle without closure path produces error", ()
   // Entry reaches closure via a separate path so per-entry check passes,
   // but the cycle A<->B has no exit to closure.
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "entry.step" },
+    entryStepMapping: {
+      issue: { initial: "entry.step", continuation: "entry.step" },
+    },
     steps: {
       "entry.step": {
         stepId: "entry.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // Entry can reach closure directly (per-entry check passes)
           handoff: { target: "closure.step" },
@@ -1289,21 +1690,39 @@ Deno.test("flow-validator/P2-4b - cycle without closure path produces error", ()
       },
       "cycle.a": {
         stepId: "cycle.a",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.b" },
         },
       },
       "cycle.b": {
         stepId: "cycle.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.a" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1330,18 +1749,32 @@ Deno.test("flow-validator/P2-4b - cycle without closure path produces error", ()
 Deno.test("flow-validator/P2-4b - cycle with closure path produces no cycle error", () => {
   // A->B->A cycle, but B also has an edge to closure -> no cycle error
   const registry: Record<string, unknown> = {
-    entryStepMapping: { issue: "cycle.a" },
+    entryStepMapping: {
+      issue: { initial: "cycle.a", continuation: "cycle.a" },
+    },
     steps: {
       "cycle.a": {
         stepId: "cycle.a",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.b" },
         },
       },
       "cycle.b": {
         stepId: "cycle.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.a" },
           handoff: { target: "closure.step" },
@@ -1349,7 +1782,13 @@ Deno.test("flow-validator/P2-4b - cycle with closure path produces no cycle erro
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },

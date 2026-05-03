@@ -48,8 +48,8 @@ export {
 // Step registry for prompt externalization
 export type {
   GateIntent,
-  PromptStepDefinition,
   RegistryLoaderOptions,
+  Step,
   StepRegistry,
   StructuredGate,
   TransitionRule,

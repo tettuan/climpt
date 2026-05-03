@@ -17,19 +17,24 @@ export interface StepsRegistry {
   steps: Record<string, FlowStepDefinition>;
   editions?: Record<string, string>;
   /**
-   * Mode-based entry step mapping.
-   * Allows dynamic entry step selection based on execution mode.
-   * Example: { "issue": "s_init_issue", "project": "s_init_project", "iterate": "s_init_iterate" }
+   * Verdict-type to entry step pair.
+   * Each value declares the initial and continuation step ids explicitly;
+   * the runtime never derives one from the other.
+   * Example:
+   *   {
+   *     "poll:state":     { "initial": "initial.issue",  "continuation": "continuation.issue" },
+   *     "count:iteration": { "initial": "clarify",       "continuation": "clarify" }
+   *   }
    */
-  entryStepMapping?: Record<string, string>;
+  entryStepMapping?: Record<string, { initial: string; continuation: string }>;
 }
 
 /**
  * Step definition for step flow execution control.
  *
- * NOTE: This is different from PromptStepDefinition in common/step-registry.ts.
+ * NOTE: This is different from Step in common/step-registry.ts.
  * - FlowStepDefinition (here): Step flow execution and state machine control
- * - PromptStepDefinition (common): C3L-based prompt file resolution
+ * - Step (common/step-registry): C3L-based prompt file resolution
  */
 export interface FlowStepDefinition {
   id: string;
@@ -104,7 +109,7 @@ export interface IterationConfig {
 /**
  * Check definition for step completion
  *
- * @deprecated Use structuredGate/transitions in PromptStepDefinition instead.
+ * @deprecated Use structuredGate/transitions in Step instead.
  * See agents/common/step-registry.ts for the new approach.
  */
 export interface CheckDefinition {

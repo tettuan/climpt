@@ -1,0 +1,479 @@
+# Step Flow Design
+
+Flow ループが扱う Step を「単純な図面」で表し、設計と実装を同じ姿に保つ。
+ここでは **Mermaid 図** を中心に、What / Why を記述する。
+
+## 1. 目的と原則
+
+- **What**: Start→複数 Step→完了判定という一本の鎖で Agent を進める。
+- **Why**: 単方向で連鎖させることで、暗黙ロジックや AI の過剰推論を排除する。
+- **Rule**: 各 Step は structured output を返し、次に進む意図を宣言する。
+
+```mermaid
+flowchart LR
+  Issue["issue 指定"] --> FlowLoop
+  FlowLoop(((Flow Loop))) --> Completion{{Completion Loop}}
+  Completion -->|retry| FlowLoop
+  Completion -->|handoff| End([end])
+```
+
+Flow Loop は Step の実行だけを担当し、検証/締め処理は Completion Loop が担う。
+
+## 2. Flow の骨格
+
+```mermaid
+flowchart TD
+  Start([start]) --> Step1[step1]
+  Step1 --> Step2[step2]
+  Step2 --> StepN[step n]
+  StepN --> Review["Closure Step<br/>(closure.*)"]
+  Review --> End([end])
+```
+
+- **What**: 全ての Agent はこの骨格を基礎に Step を差し替える。
+- **Why**: 汎用のランタイムを保ったままユニークな Agent を構築できる。
+- **Constraint**: Entry Step は `entryStepMapping` または `entryStep`
+  を必須定義。
+- **Link**: `Review` ノードが `closure.<domain>`（Closure Step）と 1:1
+  に対応し、サブループ図の Closure Step と同じ要素となる。
+
+### 2.1 Step taxonomy (What / Why)
+
+| 種別                                       | What                                                                                                                | Why                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Work Step (`initial.*` / `continuation.*`) | 成果物を生成し、`next` / `repeat` / `jump` / `handoff` intent を返す。作業完了時は `handoff` で Closure Step へ遷移 | 生成責務を一箇所に閉じ込め、Issue 操作などの境界行為を排除する     |
+| Verification Step (`verification.*`)       | 直前の Work Step 成果を自己検証し、`next` / `repeat` / `jump` / `escalate` intent を返す                            | Step ごとの完了基準を明確にし、Work Step での自己評価抜けを防ぐ    |
+| Closure Step (`closure.*`)                 | Workflow 全体と外部 state を突き合わせ、`closing` / `repeat` を返す                                                 | 完了可否を一箇所で判断し、Issue close 等の副作用をここに限定する   |
+| Boundary Hook (非 Step)                    | Closure Step が `closing` を宣言した瞬間だけ Issue / PR 操作を実行                                                  | 連鎖の境界をプログラムで保証し、Work/Verification からの逸脱を防ぐ |
+
+> **Rule**: Work / Verification Step では `closing` intent を返さない。Boundary
+> Hook は Closure Step を通過した run に対してのみ起動する。
+
+## 3. Step 内部のサブループ
+
+```mermaid
+flowchart LR
+  subgraph WorkStep["work step (initial/continuation)"]
+    direction LR
+    Begin([開始]) --> Work[作業]
+    Work --> Check[成果物検証]
+    Check -->|structured output| DecideWork{intent}
+    DecideWork -->|next| NextStep[別 Step]
+    DecideWork -->|repeat| Begin
+    DecideWork -->|jump| JumpStep[任意 Step]
+    DecideWork -->|handoff| ClosureTarget[Closure Step]
+  end
+
+  subgraph VerifyStep["verification step (verification.*)"]
+    direction LR
+    VBegin([開始]) --> VRead[成果物読み取り]
+    VRead --> VCheck[自己検証]
+    VCheck -->|structured output| DecideVerify{intent}
+    DecideVerify -->|next| NextStep
+    DecideVerify -->|repeat| ReturnWork[再実行 Step]
+    DecideVerify -->|jump| JumpVerify[任意 Step]
+  end
+
+  subgraph ClosureStep["closure step (closure.*)"]
+    direction LR
+    CBegin([開始]) --> CWork[整合確認]
+    CWork --> CCheck[証跡検証]
+    CCheck -->|structured output| DecideClose{intent}
+    DecideClose -->|closing| ClosingSignal[(closing intent)]
+    DecideClose -->|repeat| ReturnWork[再実行 Step]
+  end
+
+  ClosingSignal --> Boundary[Boundary hook]
+  Boundary --> FlowHandoff[Flow handoff]
+  FlowHandoff --> CompletionLoop[Completion Loop]
+```
+
+- **What**: Work Step は `next`/`repeat`/`jump`、Verification Step は
+  `next`/`repeat`/`jump`/`escalate`、Closure Step は `closing`/`repeat` を
+  structured output で返す。
+- **Why**: Flow Router が解釈する intent を最小集合に保ち、AI
+  の回答ぶれを抑える。
+- **Rule**: Work / Verification Step は `closing` を返さず、`escalate` intent は
+  Flow が静的に定義したサポート Step のみに遷移させる。
+- **Default scaffolder**: デフォルトの scaffolder は `escalate` を
+  `continuation.default` へルーティングする（`repeat` と同等）。専用のサポート
+  Step が必要な場合は、`support.verification` 等を追加し `transitions.escalate`
+  を カスタマイズする。
+- **Loop safety**: Closure Step の `transitions` は `closing` を Flow End
+  へ、`repeat` を明示的に作業 Step へ向ける。`closing → closing`
+  にはならず、repeat で再検証させる場合のみ戻る。
+
+#### formatted schema との連携
+
+```mermaid
+sequenceDiagram
+  participant Runner
+  participant Schema as Step schema
+  participant SDK as Claude SDK
+  participant LLM
+
+  Runner->>Schema: resolve(outputSchemaRef)
+  Schema-->>Runner: JSON schema (allowed intents)
+  Runner->>SDK: formatted { type: "json", schema }
+  SDK->>LLM: enforce schema
+  LLM-->>Runner: structured output (intent + handoff)
+```
+
+- Runner は Step schema を SDK の `formatted` オプションで渡し、intent
+  選択肢（Work: `next`/`repeat`/`jump`、Verification:
+  `next`/`repeat`/`jump`/`escalate`、Closure: `closing`/`repeat`）を schema の
+  enum で固定する。
+- プロンプトは意味付けだけに集中し、構造的制約は schema が担う。
+- `intentField` は Step 定義で必須となり、Runtime が推測することはない。 pointer
+  の誤りはロード時に検知され、修正されるまで Flow は動かない。
+
+### 3.1 stepId の正規化（Runtime 権限）
+
+- **What**: Flow が stepId の正規値を保持し、LLM が返す stepId
+  と一致しない場合は 自動補正する。
+- **Why**: `const` 制約は Anthropic SDK で強制されないため、LLM
+  が文脈から推測した stepId を返すことがある。Runtime で補正することで routing
+  の決定性を保つ。
+- **Rule**: LLM は intent（`next`/`repeat`/`jump`/`closing`）と optional な
+  `targetStepId` を返すだけでよい。stepId は参考情報であり、Flow
+  が単一の権限を持つ。
+
+```mermaid
+sequenceDiagram
+  participant Runner
+  participant LLM
+  participant Flow
+
+  Flow->>Runner: expectedStepId (canonical)
+  Runner->>LLM: prompt + schema
+  LLM-->>Runner: structured output (possibly wrong stepId)
+  Runner->>Runner: normalize stepId to canonical
+  Note over Runner: log warning if corrected
+  Runner->>Flow: corrected structured output
+```
+
+> **Telemetry**: 補正が発生した場合は `[StepFlow] stepId corrected` として
+> ログに記録される。頻発する場合は schema/prompt の見直しを検討する。
+
+## 4. Structured Gate + Router
+
+```mermaid
+flowchart LR
+  subgraph Gate[StepGateInterpreter]
+    SO[structured output] --> Intent[intent抽出]
+    Intent --> Handoff[handoff抽出]
+  end
+
+  Gate --> Router((Workflow Router))
+  Router -->|next| StepNext
+  Router -->|repeat| StepSame
+  Router -->|jump| StepNamed
+  Router -->|closing| Closure["Closure Step (closure.*)"]
+  Router -->|abort| Terminate[[FAILED]]
+```
+
+- **What**: `structuredGate` が Intent / handoff の抽出方法を宣言する。
+- **Why**: Flow は Router の結果だけで次の Step
+  を決めればよくなり、責務を細分化。
+- **必須**: すべての Flow Step は `structuredGate` (`allowedIntents`,
+  `intentField`, `intentSchemaRef`) と `transitions` を定義する。`intentField`
+  は推論されず、欠落しているとロードに失敗する。
+- **Pointer validation**: `intentSchemaRef` は Schema 上の intent enum へ
+  のみ張ることを許容し、Runner が `allowedIntents` との一致を検証する。 enum
+  に余計な値が含まれていたり pointer が壊れている場合は即時停止する。
+- **Fail-fast**: Gate が intent を解釈できなかった場合は Runner が
+  `FAILED_STEP_ROUTING` で停止する。`failFast` は既定で `true` であり、
+  プロダクション Agent では無効化できない。検証用途で `false` にした場合は
+  ログに `[StepFlow][SpecViolation]` を残し、フォールバック Intent
+  (`fallbackIntent` または最初の `allowedIntents`)
+  を使うが、これは例外的オプション であることをドキュメントに明記する。
+
+### Step サブループとの結びつき
+
+```mermaid
+flowchart LR
+  subgraph StepLoop[step_k 内部]
+    direction LR
+    Begin([開始]) --> Work[作業]
+    Work --> Check[成果物検証]
+    Check -->|構造化JSON| Decide{intent + handoff}
+  end
+
+  Decide --> Gate
+  Gate[StepGateInterpreter] --> Router((Workflow Router))
+  Router -->|next| NextStep[別 Step]
+  Router -->|repeat| Begin
+  Router -->|jump| JumpStep[任意 Step]
+  Router -->|closing| ClosureStep[closure step]
+  ClosureStep --> Completion[Completion Loop]
+  Router -->|escalate| Escalation[verification support]
+```
+
+Step サブループで生成された structured output が Gate へ渡り、Router が Flow
+全体の 遷移を決める。**各セクションは「Step 内部 → Gate → Router → Flow」へと
+接続する一連の鎖を表している。**
+
+## 5. Schema Fail-Fast
+
+```mermaid
+sequenceDiagram
+  participant Flow
+  participant Schema as SchemaResolver
+  participant LLM
+
+  Flow->>Schema: load(outputSchemaRef)
+  Schema-->>Flow: success / failure
+  Flow->>LLM: run prompt (on success)
+  Flow-->>Flow: abort iteration (on failure)
+  Note over Flow: 2 回連続で schema failure → FAILED_SCHEMA_RESOLUTION
+```
+
+- **What**: JSON Pointer がずれた瞬間に Step を停止し、2 回連続で run も停止。
+- **Why**: Structured Output が得られない状態でループすると、Step Flow
+  全体が崩壊するため。
+- **Link**: 下図のように、Schema Fail-Fast が Step
+  サブループの「開始」前に挿入され、構造化 JSON が揃わない限り作業へ進ませない。
+
+```mermaid
+flowchart LR
+  SchemaCheck{schema resolve?}
+  SchemaCheck -->|yes| Begin([Step begin])
+  SchemaCheck -->|no| Abort[[Iteration abort]]
+
+  Begin --> Work[作業]
+  Work --> Check[成果物検証]
+  Check --> Decide{intent}
+```
+
+## 6. Intent 欠落時の Fail-Fast
+
+```mermaid
+sequenceDiagram
+  participant Flow
+  participant Gate
+  participant Abort as FAILED_STEP_ROUTING
+
+  Flow->>Gate: interpret(response)
+  Gate-->>Flow: no-intent
+  Flow-->>Flow: abort iteration (iteration>1)
+  Flow-->>Abort: terminate run
+```
+
+- **What**: intent が得られなければ即座に停止し、暗黙フォールバックを禁止。
+- **Why**: ループし続けるよりも、設定ミスを露見させるほうが健全。
+- **Policy**: `failFast` の既定値は `true` であり、Flow Agent はこの状態で
+  リリースする。どうしても一時的に `false` にする場合は `fallbackIntent`
+  を明示し、Runner が `[StepFlow][SpecViolation]`
+  を記録することで逸脱を検知可能にする。
+- **Link**: Step サブループ内の `Decide{intent}` から Gate
+  に渡った結果が空のとき、即座に Flow を止める。
+
+```mermaid
+flowchart LR
+  Decide{intent} -->|valid| Gate[Gate + Router]
+  Gate -->|next| NextStep
+  Gate -->|repeat| RepeatStep
+  Gate -->|closing| ClosureStep
+  Gate --> Abort[[Flow End]]
+
+  Decide -->|no intent| Abort
+```
+
+## 7. Hand-off と Completion
+
+```mermaid
+flowchart LR
+  FlowStep -->|handoffFields| StepContext
+  StepContext --> Completion
+  Completion -->|retry| FlowStep
+  Completion -->|done| Close([issue close])
+```
+
+- **What**: StepContext に蓄積した handoff を Completion Loop がまとめて処理。
+- **Why**: Flow と Completion の責務境界が守られ、どちらも単純化される。
+- **Link**: Flow 骨格図の `Review (Closure Step / closure.*)` ノードと 1:1
+  に対応し、各 Step から集まった handoff が StepContext 経由で Completion Loop
+  へ渡って最終判定を行う。
+
+### 7.1 Boundary hook
+
+- **What**: Closure Step が `closing` intent を返した瞬間にだけ起動し、Issue
+  close / Issue ラベル管理 / Release 作成などの副作用を実行するシンプルな関数。
+  AI は `closing` intent を返すだけであり、`gh` コマンドの実行は Runner の
+  Boundary Hook が担う。
+- **Why**: Work / Verification Step が誤って Issue
+  操作を行うことを物理的に防ぎ、Flow の鎖を壊さない。
+- **Implication**: Schema / Gate が `closing` intent
+  を禁止している限り、Boundary Hook
+  は決して呼び出されないため、設定ミスが外部副作用へ波及しない。
+- **Side effects**: Boundary hook は以下の外部副作用を実行可能:
+  - Issue close（デフォルト）
+  - Issue ラベル変更（`github.labels.completion` 設定または AI structured
+    output）
+  - `label-only` モードでは Issue を OPEN のまま残し、ラベルのみ変更
+- **実行フロー**:
+  1. Closure Step の AI が `closing` intent を structured output で返す
+  2. Gate Interpreter が intent を認識し Router に渡す
+  3. Router が `signalCompletion: true` で `invokeBoundaryHook()` を呼び出す
+  4. `completionHandler.onBoundaryHook()` が `gh` コマンドを Runner プロセス
+     内で実行（AI の bash ツール経由ではない）
+
+#### intent と Phase 遷移 Transaction の接続
+
+Flow 側の intent は Step の遷移先を選ぶだけで、Issue 状態そのものを変更しない。
+Issue 状態の変更 (label 付け替え / handoff comment / issue close) は、Closure
+Step が `closing` intent を出した後、Runner Boundary Hook を経由して
+Orchestrator 側の **Phase 遷移 Transaction** (`TransactionScope`) が担う。
+
+| intent     | 発行元 Step                        | Flow 側の挙動                                             | Orchestrator 側 gh 副作用                     |
+| ---------- | ---------------------------------- | --------------------------------------------------------- | --------------------------------------------- |
+| `next`     | Work / Verification Step           | `transitions.next` の Step へ進む                         | なし                                          |
+| `repeat`   | Work / Verification / Closure Step | 同 Step を再実行                                          | なし                                          |
+| `jump`     | Work / Verification Step           | `targetStepId` の Step へ跳ぶ                             | なし                                          |
+| `escalate` | Verification Step                  | support Step へ誘導 (デフォルトは `continuation.default`) | なし                                          |
+| `handoff`  | 後続 Work Step                     | `closure.<domain>` (Closure Step) へ遷移                  | なし                                          |
+| `closing`  | Closure Step                       | Flow End へ (`target: null`)                              | Boundary Hook → Phase 遷移 Transaction が起動 |
+
+`closing` intent だけが Orchestrator の TransactionScope を起動する、という 1:1
+対応が本設計の境界となる (詳細: `12_orchestrator.md` の「Phase 遷移
+Transaction」)。
+
+##### closing intent から transaction 起動までの流れ
+
+```mermaid
+sequenceDiagram
+  participant Closure as Closure Step
+  participant Gate as Gate + Router
+  participant Hook as Boundary Hook (Runner)
+  participant Orch as Orchestrator cycle
+  participant Scope as TransactionScope
+
+  Closure-->>Gate: structured output (intent="closing")
+  Gate->>Hook: signalCompletion=true
+  Hook-->>Orch: AgentResult (verdict, handoff)
+  Orch->>Scope: new TransactionScope()
+  Scope->>Scope: T3 add-labels → T4 remove-labels
+  Scope->>Scope: T5 handoff-comment → T6 close (pre-register compensation)
+  alt 全成功
+    Orch->>Scope: commit()
+    Orch->>Orch: tracker.record + T7 local persist
+  else 途中失敗
+    Orch->>Scope: rollback(error) → LIFO 補償
+    Orch->>Orch: status="blocked"
+    Note over Orch: 次サイクルで同 phase 再試行（セルフヒール）
+  end
+```
+
+##### Transaction 失敗時の自己修復
+
+Phase 遷移 Transaction が途中失敗して rollback した場合、Orchestrator は当該
+サイクルを `status="blocked"` で終える。`break` でループを抜けるが、
+`cycleTracker.record` は走らないため **maxCycles カウンタは増えない**。次回
+`run()` 呼び出し時には:
+
+1. gh から最新 labels を再取得 (Dual Truth Source: `run()` は常に gh を source
+   of truth とする)
+2. 補償で preImage に復元された labels から `resolvePhase` が **元の phase**
+   を再解決
+3. 同じ actionable phase に対し Agent を再ディスパッチ
+4. 再度 Closure Step まで到達すれば、新規 `cycleSeq` で新しい `TransactionScope`
+   が起動 (補償マーカーの `cycleSeq` が異なるため、前回失敗の compensation
+   comment と混在しない)
+
+この流れにより、「AI 的な判断を再度行わずに」外部障害 (gh rate limit / network)
+を乗り越えられる。Flow 側で intent を作り直す必要はなく、Flow と Transaction
+の責務が明確に分離される。
+
+#### 決定論的サンドボックス制御
+
+Boundary Hook に加え、サンドボックスのネットワーク遮断が Agent の GitHub
+アクセスを決定論的に制御する。パターンマッチング（`BOUNDARY_BASH_PATTERNS` で
+`curl`, `wget` 等の亜種を捕捉する方式）ではなく、ネットワーク層での遮断により
+バイパス不可能な境界を実現する。
+
+**3 つのアクセスパス**:
+
+| パス                                       | 実行主体           | 実行場所                           | 用途                                           |
+| ------------------------------------------ | ------------------ | ---------------------------------- | ---------------------------------------------- |
+| `mcp__github__github_read` MCP ツール      | Agent（読み取り）  | ホストプロセス（サンドボックス外） | Issue/PR/ファイルの参照                        |
+| Boundary Hook                              | Runner（書き込み） | ホストプロセス（サンドボックス外） | Issue close、ラベル変更等（closure step のみ） |
+| Agent の直接アクセス (`Bash("gh ...")` 等) | —                  | サンドボックス内                   | **ブロック（決定論的失敗）**                   |
+
+原則: **Agent は WHAT を決定し（structured output）、System が HOW を実行する
+（Boundary Hook / MCP ツール）**。
+
+### 7.2 Step kind とツール許可
+
+```mermaid
+flowchart LR
+  Work[work step] -->|allowedTools: shell,edit| SDK
+  Verify[verification step] -->|allowedTools: shell,edit| SDK
+  Closure[closure step] -->|"allowedTools: shell,edit<br/>(bash の gh 書き込みは全 stepKind で一律ブロック)"| SDK
+  SDK --> Boundary[[Boundary Hook]]
+```
+
+- **What**: Runner は `stepKind` ごとに許可ツールを再構成し、全 stepKind で
+  GitHub resource への **bash 書き込みを一律ブロック** する
+  (`blockBoundaryBash: true` + `BOUNDARY_BASH_PATTERNS`)。 Issue の label
+  更新・close・state 遷移などの副作用は **closure step の structured output
+  (`issue.labels`, `closure_action` 等) を経由して Boundary Hook が単一の出口**
+  として実行する (`github-read-tool.ts:8-9` の "exclusively" 宣言を参照)。MCP
+  層に boundary tool は実装していない。
+- **Why**: 「手順中に Issue を閉じないで」とプロンプトで言う代わりに、物理的に
+  呼び出せない状態にすることで AI 複雑性を排除する。Flow の実装は stepKind を
+  見るだけで十分で、追加の条件分岐を必要としない。closure step でも bash 経由の
+  `gh` コマンドをブロックするのは、AI が `label-only` モードをバイパスして 直接
+  Issue を close することを防ぐため。
+- **Implication**: ユーザーが `.agent/<agent>/steps_registry.json` で stepKind
+  を 定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
+  エラーにするため、ワークフロー全体で一貫した境界管理が維持される。
+- **2 層の安全境界**:
+  1. **Schema + ToolPolicy 層**: AI が直接 `gh` コマンドを実行できない
+  2. **Boundary Hook 層**: Runner プロセスが `closing` intent に基づき
+     `completionHandler.onBoundaryHook()` 経由で唯一の正規パスとして実行
+
+### 7.3 Sequential Step Enforcement
+
+**Rule**: Work steps MUST NOT emit `handoff` unless they have completed
+meaningful work.
+
+| Step type        | handoff availability                         |
+| ---------------- | -------------------------------------------- |
+| `initial.*`      | **Not available** - must use `next`/`repeat` |
+| `continuation.*` | Available after work cycle                   |
+| `closure.*`      | N/A - uses `closing` instead                 |
+
+- **What**: Default scaffolder templates do NOT expose `handoff` on initial
+  steps. Builders must explicitly add `handoff` to
+  `structuredGate.allowedIntents` and `transitions` after confirming that the
+  step represents final work.
+- **Why**: Premature handoff bypasses the work cycle and defeats multi-step
+  execution. The sports-condition-manager and trip-planner regressions both
+  stemmed from initial steps emitting `handoff` before any continuation work
+  occurred.
+- **Implication**: If a builder adds `handoff` to an initial step, they accept
+  responsibility for ensuring the step genuinely completes the workflow. Runtime
+  logs will warn when `handoff` is emitted from an `initial.*` step.
+
+## 8. 設定の型と要件（要約）
+
+| 要素                             | What                                                                                                      | Why                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須                                                            | schema 失敗を即時検知                                                   |
+| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                                                                   | Runtime が intent 検証                                                  |
+| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)                                                        | Runtime が deterministic に intent 抽出                                 |
+| `structuredGate.intentSchemaRef` | `#/properties/next_action/properties/action` 形式の内部ポインタ (必須)                                    | schema enum と allowedIntents の齟齬を失敗で露見                        |
+| `transitions[target]`            | intent → Step を列挙。`closing` は `target: null`（終端）、`handoff` が `closure.<domain>` へルーティング | `closing` = 終了宣言、`handoff` = Closure Step 遷移という明確な役割分担 |
+| `handoffFields`                  | StepContext に積むキーを配列で宣言                                                                        | 暗黙共有を防止                                                          |
+
+> **Fail-fast policy**: `structuredGate.failFast` の既定値は `true`。
+> プロダクション Agent では変更禁止とし、デバッグ目的で `false` にする場合は
+> ログ/テレメトリで逸脱を残すこと。
+
+> **closing target rule**: `closing` intent に対する `transitions[target]`
+> は必ず `null`（終端）を指定すること。Router は `closing` の非 null
+> ターゲットを無視し、 終端として処理する。`closure.<domain>`
+> への遷移が必要な場合は `handoff` を使用する。
+
+図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
+と完全に一致させる。

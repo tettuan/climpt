@@ -56,10 +56,6 @@ function validDefinition(): AgentDefinition {
         type: "detect:graph",
         config: { registryPath: "steps_registry.json" },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "default",
-      },
     },
   };
 }
@@ -330,10 +326,14 @@ Deno.test("path-validator - missing C3L prompt file reports error", async () => 
       c1: "steps",
       steps: {
         "initial.default": {
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "default",
+            edition: "default",
+          },
           stepId: "initial.default",
-          c2: "initial",
-          c3: "default",
-          edition: "default",
         },
       },
     };
@@ -389,10 +389,14 @@ Deno.test("path-validator - existing C3L prompt file returns valid", async () =>
       c1: "steps",
       steps: {
         "initial.default": {
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "default",
+            edition: "default",
+          },
           stepId: "initial.default",
-          c2: "initial",
-          c3: "default",
-          edition: "default",
         },
       },
     };
@@ -446,11 +450,15 @@ Deno.test("path-validator - C3L prompt with adaptation checks correct path", asy
       c1: "steps",
       steps: {
         "initial.issue.label_only": {
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "issue",
+            edition: "default",
+            adaptation: "label_only",
+          },
           stepId: "initial.issue.label_only",
-          c2: "initial",
-          c3: "issue",
-          edition: "default",
-          adaptation: "label_only",
         },
       },
     };
@@ -1111,10 +1119,14 @@ Deno.test("path-validator - null promptRoot with registry emits skip warning", a
       c1: "steps",
       steps: {
         "initial.default": {
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "default",
+            edition: "default",
+          },
           stepId: "initial.default",
-          c2: "initial",
-          c3: "default",
-          edition: "default",
         },
       },
     };

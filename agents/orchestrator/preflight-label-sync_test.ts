@@ -26,11 +26,15 @@ import type {
   IssueDetail,
   IssueListItem,
   LabelDetail,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { BatchRunner } from "./batch-runner.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 
 // =============================================================================
 // Recording GitHub client — only label-spec methods are instrumented
@@ -129,6 +133,63 @@ class RecordingGithubClient implements GitHubClient {
   listLabels(): Promise<string[]> {
     return Promise.resolve([]);
   }
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve([]);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(_project: ProjectRef, _itemId: string): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 // =============================================================================
@@ -143,23 +204,31 @@ class RecordingGithubClient implements GitHubClient {
 function baseConfig(
   labels?: Record<string, { color: string; description: string }>,
 ): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    complete: { type: "terminal" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      outputPhase: "complete",
+      fallbackPhase: "complete",
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 1, agent: "iterator" },
-      complete: { type: "terminal" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       done: "complete",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        outputPhase: "complete",
-        fallbackPhase: "complete",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 1,
       cycleDelayMs: 0,
@@ -194,7 +263,7 @@ Deno.test("BatchRunner: preflight creates missing labels declared in workflow.js
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     // Exactly one baseline read (one preflight invocation per batch).
     const lists = github.labelCalls.filter((c) => c.op === "list");
@@ -239,7 +308,7 @@ Deno.test("BatchRunner: preflight updates labels whose color drifted", async () 
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     const updates = github.labelCalls.filter((c) => c.op === "update");
     assertEquals(updates.length, 1);
@@ -274,7 +343,7 @@ Deno.test("BatchRunner: preflight is a no-op when workflow.json has no labels se
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     // No label-spec API call of any kind: preflight short-circuits when
     // `labels` is absent so pre-Phase-2 configs continue to work.
@@ -308,7 +377,7 @@ Deno.test("BatchRunner: preflight dryRun skips create/update but still lists", a
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({}, { dryRun: true });
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE, { dryRun: true });
 
     // dryRun still reads baseline (that's harmless and informs the summary).
     assertEquals(
@@ -381,7 +450,7 @@ Deno.test("Orchestrator.runBatch: preflight runs exactly once across batch + per
       new StubDispatcher({ iterator: "success" }),
       tmpDir,
     );
-    await orchestrator.runBatch({});
+    await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     // listLabelsDetailed must be called exactly once (batch preflight);
     // if Orchestrator double-syncs the count would be >1.

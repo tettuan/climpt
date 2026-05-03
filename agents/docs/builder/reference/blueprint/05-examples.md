@@ -217,6 +217,7 @@ CLI parameters にも存在しないため、R-A2 違反となる。
     "validators": {
       "git-clean": {
         "type": "command",
+        "phase": "postllm",
         "command": "git status --porcelain",
         "successWhen": "empty",
         "failurePattern": "git-dirty",
@@ -239,7 +240,8 @@ CLI parameters にも存在しないため、R-A2 違反となる。
         "name": "Review Validation",
         "c2": "retry",
         "c3": "review",
-        "validationConditions": [{ "validator": "git-clean" }],
+        "preflightConditions": [],
+        "postLLMConditions": [{ "validator": "git-clean" }],
         "onFailure": { "action": "retry", "maxAttempts": 3 }
       }
     }

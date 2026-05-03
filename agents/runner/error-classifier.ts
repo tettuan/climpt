@@ -236,3 +236,40 @@ export function calculateBackoff(
   const delay = baseMs * Math.pow(2, attempt);
   return Math.min(delay, maxMs);
 }
+
+/**
+ * Parse "resets <H>[<:MM>] (am|pm)" out of a Claude Code rate-limit message
+ * and return the next absolute Unix timestamp (seconds) at which that wall
+ * clock occurs in the local timezone.
+ *
+ * The CLI emits messages like `You've hit your limit · resets 1am`. The hour
+ * is shown in the user's local time, so the conversion uses the local Date
+ * constructor rather than UTC.
+ *
+ * Returns `null` when no parseable token is found.
+ */
+export function parseResetTime(
+  message: string,
+  now: Date = new Date(),
+): number | null {
+  const match = message.match(
+    /resets[^\d]*(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
+  );
+  if (!match) return null;
+
+  let hour = Number.parseInt(match[1], 10);
+  const minute = match[2] !== undefined ? Number.parseInt(match[2], 10) : 0;
+  const meridiem = match[3].toLowerCase();
+  if (hour < 1 || hour > 12) return null;
+  if (minute < 0 || minute > 59) return null;
+
+  if (meridiem === "pm" && hour !== 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+
+  const target = new Date(now);
+  target.setHours(hour, minute, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return Math.floor(target.getTime() / 1000);
+}

@@ -46,25 +46,32 @@ main() {
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "detect:keyword": "initial.task"
+    "detect:keyword": { "initial": "initial.task", "continuation": "initial.task" }
   },
   "steps": {
     "system": {
       "stepId": "system",
       "name": "System Prompt",
-      "c2": "system",
-      "c3": "prompt",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "system",
+        "c3": "prompt",
+        "edition": "default"
+      },
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
     "initial.task": {
       "stepId": "initial.task",
       "name": "Fix Bug Task",
-      "c2": "initial",
-      "c3": "task",
-      "edition": "default",
-      "stepKind": "work",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "task",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -76,10 +83,14 @@ main() {
     "closure.task": {
       "stepId": "closure.task",
       "name": "Task Closure",
-      "c2": "closure",
-      "c3": "task",
-      "edition": "default",
-      "stepKind": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "task",
+        "edition": "default"
+      },
+      "adaptationChain": ["default", "retry-1", "retry-2"],
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}
@@ -136,6 +147,25 @@ PROMPT
 Verify the bug fix was applied correctly. Read `tmp/iterator-fixture.ts` and confirm the `add` function returns `a + b`.
 
 Output TASK_COMPLETE when verified.
+PROMPT
+
+  # Adaptation-chain variants for repeat-driven retries.
+  # Boot S9 enforces structural validity; runtime resolver loads the file
+  # matching the cursor position (default → retry-1 → retry-2).
+  cat > "${AGENT_DIR}/prompts/steps/closure/task/f_default_retry-1.md" << 'PROMPT'
+# Task Closure (retry 1)
+
+Previous closure did not converge. Re-read `tmp/iterator-fixture.ts` carefully and re-check whether the `add` function returns `a + b`.
+
+On retry, focus on what the previous attempt missed. Output TASK_COMPLETE when verified.
+PROMPT
+
+  cat > "${AGENT_DIR}/prompts/steps/closure/task/f_default_retry-2.md" << 'PROMPT'
+# Task Closure (retry 2)
+
+Final retry. Read `tmp/iterator-fixture.ts` line by line and confirm the body of `add` returns `a + b`.
+
+Be exhaustive. Output TASK_COMPLETE when verified.
 PROMPT
   success "Prompt files written"
 

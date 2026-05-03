@@ -1,7 +1,177 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "considerer.schema.json",
-  "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json).",
+  "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json). Optional deferred_items[] carves out out-of-scope tasks as new issues before close.",
+
+  "closure.consider.doc-scan": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-scan. Must emit doc_paths_required so downstream Doc evidence MUST rule has factual basis.",
+    "required": ["next_action", "doc_paths_required"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "description": "Doc paths (docs/**, **/design*.md, agents/docs/**) mentioned in the issue body + comments. Empty array if none.",
+        "items": { "type": "string" }
+      }
+    }
+  },
+
+  "closure.consider.doc-verify": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-verify. Must emit doc_diff_results for each required path.",
+    "required": ["next_action", "doc_paths_required", "doc_diff_results"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.doc-evidence": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-evidence. Must emit doc_evidence array (commit metadata for diffed paths).",
+    "required": ["next_action", "doc_paths_required", "doc_diff_results", "doc_evidence"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
+          }
+        }
+      },
+      "doc_evidence": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed", "commits", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" },
+            "commits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sha", "date", "subject", "stat"],
+                "additionalProperties": false,
+                "properties": {
+                  "sha": { "type": "string", "minLength": 7 },
+                  "date": { "type": "string", "minLength": 1 },
+                  "subject": { "type": "string" },
+                  "stat": { "type": "string" }
+                }
+              }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.precheck-kind-read": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.precheck-kind-read. Best-effort audit read; kind_at_triage is optional/nullable when the artifact is absent or invalid. The terminal consider step does not branch on this field — current label is authoritative.",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next"]
+          }
+        }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null]
+      }
+    }
+  },
+
+  "closure.consider.precheck-kind-scope": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.precheck-kind-scope. Always emits next; must emit kind_boundary_violations so closure step's Step 4-pre can detect breach.",
+    "required": ["next_action", "kind_boundary_violations"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next"]
+          }
+        }
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  },
 
   "closure.consider": {
     "type": "object",
@@ -26,7 +196,7 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["closing", "repeat"],
+            "enum": ["closing"],
             "description": "Closure intent. Always 'closing' for single-iteration considerer."
           },
           "reason": { "type": "string" },
@@ -57,6 +227,124 @@
           "strategy": {
             "type": ["string", "null"],
             "description": "Specific modification approach (not abstract)."
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "description": "[RC4] Doc paths (docs/**, **/design*.md, agents/docs/**) mentioned in the issue body + comments. Populated by closure.consider.doc-scan. Additive / optional.",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "description": "[RC4] Per-path diff verification result for this run. Populated by closure.consider.doc-verify. Additive / optional.",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
+          }
+        }
+      },
+      "doc_evidence": {
+        "type": "array",
+        "description": "[RC4] Commit metadata since baseline for diffed=true paths. Populated by closure.consider.doc-evidence. Fact-only (sha/date/subject/--stat); no relevance judgment. Consumed by the terminal consider step. Additive / optional.",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed", "commits", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" },
+            "commits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sha", "date", "subject", "stat"],
+                "additionalProperties": false,
+                "properties": {
+                  "sha": { "type": "string", "minLength": 7 },
+                  "date": { "type": "string", "minLength": 1 },
+                  "subject": { "type": "string" },
+                  "stat": { "type": "string" }
+                }
+              }
+            },
+            "truncated": {
+              "type": "boolean",
+              "description": "True when commit enumeration hit the --max-count=20 cap (more commits may exist beyond the cap)."
+            }
+          }
+        }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "[RC6] Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null) when the artifact does not exist. Populated best-effort by closure.consider.precheck-kind-read. Additive / optional. Do NOT branch behavior on this field."
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "Out-of-scope paths under considerer's source-edit boundary (live label). Empty = clean. Populated by closure.consider.precheck-kind-scope; consumed by the terminal consider step's Step 4-pre to decide handoff-detail on boundary breach.",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      "deferred_items": {
+        "type": "array",
+        "description": "Out-of-scope tasks carved off for follow-up issues. Orthogonal to verdict: valid on both 'done' and 'handoff-detail'. Orchestrator converts each entry into a new GitHub issue via outbox 'create-issue' before the current issue closes. Leave empty (default) when the current response fully covers the original scope. Do NOT fabricate specification detail here — each entry must describe a task the original issue author could have filed on their own.",
+        "default": [],
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "required": ["title", "body", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Issue title. Self-contained, no reference to the parent issue number required (the runner links it back via body)."
+            },
+            "body": {
+              "type": "string",
+              "description": "Issue body in markdown. Should restate the scope concretely so the downstream agent does not need to re-read the parent issue."
+            },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Labels applied to the new issue. Usually 'kind:impl' or 'kind:consider'. Omit 'order:N' — the triager assigns it."
+            },
+            "projects": {
+              "type": "array",
+              "description": "Project bindings for the new issue. Absent = inherit parent's projects (when inheritProjectsForCreateIssue is on). Empty array = explicit opt-out (no inheritance). Non-empty array = use this explicit list, parent ignored.",
+              "items": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "required": ["owner", "number"],
+                    "properties": {
+                      "owner": { "type": "string", "minLength": 1 },
+                      "number": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "required": ["id"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
           }
         }
       }

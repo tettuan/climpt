@@ -213,7 +213,7 @@ export function srEntryMissingConfig(agentId: string): ConfigError {
     "SR-ENTRY-001",
     `Step registry for "${agentId}" missing entry configuration.`,
     `Every registry must define either "entryStep" or "entryStepMapping" so the runner knows where to begin execution. See design/08_step_flow_design.md Section 2.`,
-    `Add "entryStep": "<stepId>" or "entryStepMapping": { "<type>": "<stepId>" } to steps_registry.json for agent "${agentId}".`,
+    `Add "entryStep": "<stepId>" or "entryStepMapping": { "<verdictType>": { "initial": "<stepId>", "continuation": "<stepId>" } } to steps_registry.json for agent "${agentId}".`,
     "steps_registry.json",
   );
 }
@@ -294,17 +294,24 @@ export function srValidRegistryFailed(errors: string[]): ConfigError {
   );
 }
 
-// --- SR-LOAD: Registry loading ---
-
-export function srLoadInvalidFormat(): ConfigError {
+export function srLegacyStepShapeRejected(errors: string[]): ConfigError {
   return new ConfigError(
-    "SR-LOAD-001",
-    `Invalid registry format: missing required fields (agentId, version, steps).`,
-    `steps_registry.json must contain at minimum: agentId, version, and steps. See design/02_core_architecture.md Section 3.`,
-    `Ensure steps_registry.json has "agentId", "version", and "steps" fields at the top level.`,
+    "SR-VALID-005",
+    `Step registry contains legacy-shape step entries (rejected):\n- ${
+      errors.join("\n- ")
+    }`,
+    `steps_registry.json step entries must use the new ADT shape: { kind: "work"|"verification"|"closure", address: { c1, c2, c3, edition, adaptation? } }. Legacy fields (stepKind, flat c2/c3/edition/adaptation siblings) are rejected — no on-disk translation. See agents/docs/design/realistic/14-step-registry.md §B.`,
+    `Migrate each listed step in steps_registry.json: rename "stepKind" → "kind", and move flat "c2"/"c3"/"edition"/"adaptation" into a nested "address" object alongside the registry-level "c1".`,
     "steps_registry.json",
   );
 }
+
+// --- SR-LOAD: Registry loading ---
+//
+// SR-LOAD-001 (`srLoadInvalidFormat`) was retired in T35: the top-level
+// presence concern (agentId/version/c1/steps) is now owned exclusively by
+// `validateRegistryShape` (raises SR-VALID-005). See critique-6 N#2 and
+// `tmp/step-adt-migration/progress.md` §T35.
 
 export function srLoadAgentIdMismatch(
   expected: string,
@@ -628,16 +635,16 @@ export function wfRefUnknownOutputPhasesEntry(
   );
 }
 
-// --- WF-REF: closeOnComplete / closeCondition cross-reference errors ---
+// --- WF-REF: closeBinding cross-reference errors ---
 
 export function wfRefCloseConditionWithoutCloseOnComplete(
   agentId: string,
 ): ConfigError {
   return new ConfigError(
     "WF-REF-005",
-    `Agent "${agentId}" has "closeCondition" but "closeOnComplete" is not enabled.`,
-    `"closeCondition" filters which outcome triggers issue close, so it requires "closeOnComplete: true" to take effect.`,
-    `Add "closeOnComplete": true to agent "${agentId}", or remove "closeCondition".`,
+    `Agent "${agentId}" has "closeBinding.condition" but no active close primary.`,
+    `"closeBinding.condition" filters which outcome triggers issue close, so it requires "closeBinding.primary.kind" to be a non-"none" channel.`,
+    `Set "closeBinding.primary.kind" to "direct" (or another close channel) for agent "${agentId}", or remove "closeBinding.condition".`,
     "workflow.json",
   );
 }
@@ -649,13 +656,165 @@ export function wfRefInvalidCloseCondition(
 ): ConfigError {
   return new ConfigError(
     "WF-REF-006",
-    `Agent "${agentId}" closeCondition "${closeCondition}" is not a key in outputPhases.`,
-    `closeCondition must match one of the outcome keys in outputPhases so it can actually trigger. Valid keys: [${
+    `Agent "${agentId}" closeBinding.condition "${closeCondition}" is not a key in outputPhases.`,
+    `closeBinding.condition must match one of the outcome keys in outputPhases so it can actually trigger. Valid keys: [${
       validKeys.join(", ")
     }].`,
-    `Change closeCondition to one of [${
+    `Change closeBinding.condition to one of [${
       validKeys.join(", ")
     }], or add "${closeCondition}" to outputPhases.`,
+    "workflow.json",
+  );
+}
+
+// --- WF-PROJECT: projectBinding cross-references (T6.eval trigger) ---
+
+export function wfProjectDonePhaseUnknown(donePhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-001",
+    `projectBinding.donePhase "${donePhase}" is not declared in phases.`,
+    `donePhase is the per-item completion signal the T6.eval trigger consults. If the phase ID does not exist, the trigger would never fire or would silently accept any issue as done.`,
+    `Add phase "${donePhase}" to the "phases" section in workflow.json, or change projectBinding.donePhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectDonePhaseNotTerminal(
+  donePhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-002",
+    `projectBinding.donePhase "${donePhase}" must have type "terminal", got "${actualType}".`,
+    `T6.eval only makes sense when every non-sentinel item has reached a terminal phase. Pointing donePhase at an actionable or blocking phase would fire the evaluator mid-flight.`,
+    `Change phases["${donePhase}"].type to "terminal", or point projectBinding.donePhase at a different terminal phase.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseUnknown(evalPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-003",
+    `projectBinding.evalPhase "${evalPhase}" is not declared in phases.`,
+    `evalPhase is the phase the sentinel transitions to when project completion is detected. An unknown phase ID would leave the sentinel in an unreachable state.`,
+    `Add phase "${evalPhase}" to the "phases" section in workflow.json, or change projectBinding.evalPhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseNotActionable(
+  evalPhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-004",
+    `projectBinding.evalPhase "${evalPhase}" must have type "actionable", got "${actualType}".`,
+    `The sentinel is transitioned into evalPhase to trigger the evaluator agent. Non-actionable phases cannot dispatch an agent.`,
+    `Change phases["${evalPhase}"].type to "actionable" (with an agent assigned), or point projectBinding.evalPhase at an actionable phase backed by the evaluator agent.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseAgentMissing(evalPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-005",
+    `projectBinding.evalPhase "${evalPhase}" is actionable but has no agent assigned.`,
+    `The evaluator phase must dispatch an agent. An actionable phase without an agent would leave the sentinel stuck on label transition with no work performed.`,
+    `Assign an agent to phases["${evalPhase}"].agent in workflow.json, and ensure that agent is declared in the "agents" section.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseNotInLabelMapping(
+  evalPhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-006",
+    `projectBinding.evalPhase "${evalPhase}" has no label in labelMapping.`,
+    `The T6.eval trigger adds a label to the sentinel so the orchestrator will pick it up and dispatch the evaluator. Without a labelMapping entry pointing at evalPhase, there is no label to add.`,
+    `Add an entry to labelMapping whose value equals "${evalPhase}" (e.g. "kind:eval": "${evalPhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectDonePhaseNotInLabelMapping(
+  donePhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-007",
+    `projectBinding.donePhase "${donePhase}" has no label in labelMapping.`,
+    `The T6.eval trigger strips the done-phase label from the sentinel. Without a labelMapping entry pointing at donePhase, there is no label to remove and project completion can never clear the sentinel.`,
+    `Add an entry to labelMapping whose value equals "${donePhase}" (e.g. "done": "${donePhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseUnknown(planPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-010",
+    `projectBinding.planPhase "${planPhase}" is not declared in phases.`,
+    `planPhase is the phase the sentinel issue is bootstrapped into by project:init. An unknown phase ID would create a sentinel in a state the orchestrator cannot route to the planner.`,
+    `Add phase "${planPhase}" to the "phases" section in workflow.json, or change projectBinding.planPhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseNotActionable(
+  planPhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-011",
+    `projectBinding.planPhase "${planPhase}" must have type "actionable", got "${actualType}".`,
+    `The sentinel is bootstrapped into planPhase so the planner agent can run on creation. Non-actionable phases cannot dispatch an agent, so the sentinel would sit idle.`,
+    `Change phases["${planPhase}"].type to "actionable" (with an agent assigned), or point projectBinding.planPhase at an actionable phase backed by the planner agent.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseAgentMissing(planPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-012",
+    `projectBinding.planPhase "${planPhase}" is actionable but has no agent assigned.`,
+    `The planner phase must dispatch an agent. An actionable phase without an agent would leave the sentinel stuck on the kind:plan label with no work performed.`,
+    `Assign an agent to phases["${planPhase}"].agent in workflow.json, and ensure that agent is declared in the "agents" section.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseNotInLabelMapping(
+  planPhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-013",
+    `projectBinding.planPhase "${planPhase}" has no label in labelMapping.`,
+    `project:init applies a labelMapping label so the sentinel is picked up and dispatched to the planner. Without a labelMapping entry pointing at planPhase, there is no label to add at creation time.`,
+    `Add an entry to labelMapping whose value equals "${planPhase}" (e.g. "kind:plan": "${planPhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectSentinelLabelUnknown(
+  sentinelLabel: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-008",
+    `projectBinding.sentinelLabel "${sentinelLabel}" is not declared in labels.`,
+    `The sentinel label is consumed by membership probes in the T6.eval trigger. It must be declared in the labels section so the pre-dispatch sync creates it with the correct color and description.`,
+    `Add "${sentinelLabel}" to the "labels" section in workflow.json with { "color": "<6-hex>", "description": "<text>", "role": "marker" }.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectSentinelLabelNotMarker(
+  sentinelLabel: string,
+  actualRole: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-009",
+    `projectBinding.sentinelLabel "${sentinelLabel}" must have role "marker", got "${actualRole}".`,
+    `The sentinel is an identification-only label consumed by includes() probes, not by phase routing. Declaring it as a routing label would force it into labelMapping and distort phase resolution.`,
+    `Set labels["${sentinelLabel}"].role to "marker" in workflow.json.`,
     "workflow.json",
   );
 }
@@ -1081,5 +1240,122 @@ export function acVerdict011DetectGraphRequiresRegistry(
     `detect:graph uses StepMachineVerdictHandler which reads the step graph from steps_registry.json. Without it, the handler cannot determine completion. See design/02_core_architecture.md.`,
     `Create steps_registry.json at the expected path, or change runner.verdict.type to a type that does not require a registry (e.g., "count:iteration").`,
     "steps_registry.json",
+  );
+}
+
+export function acVerdict012EntryStepPairMissing(
+  verdictType: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-VERDICT-012",
+    `Verdict handler for "${verdictType}" requires entryStepMapping["${verdictType}"] in steps_registry.json, but it is missing.`,
+    `entryStepMapping declares the initial and continuation step ids per verdict type. The runtime no longer derives one from the other; both must be declared explicitly. See design/04_step_flow_design.md.`,
+    `Add { "initial": "<stepId>", "continuation": "<stepId>" } under entryStepMapping["${verdictType}"]. Use the same step id for both fields when the agent has no separate continuation step.`,
+    "steps_registry.json",
+  );
+}
+
+export function acVerdict013EntryStepPairMalformed(
+  verdictType: string,
+  detail: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-VERDICT-013",
+    `entryStepMapping["${verdictType}"] is malformed: ${detail}`,
+    `Each entryStepMapping value must be an object with non-empty string fields "initial" and "continuation". The runtime no longer accepts the legacy string form.`,
+    `Replace the value with { "initial": "<stepId>", "continuation": "<stepId>" }. Set continuation = initial when the agent has no separate continuation step.`,
+    "steps_registry.json",
+  );
+}
+
+// --- WF-ISSUE-SOURCE: IssueSource ADT validation ---
+//
+// `issueSource` was promoted to a top-level required field in
+// realistic-design phase 1 (T1.1). On-disk migration of shipped
+// `.agent/workflow.json` files is owned by the workflow-ADT disk-format
+// migration (separate phase).
+
+export function wfIssueSourceRequired(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-001",
+    `Workflow config: 'issueSource' is required and must be an object with a "kind" discriminator.`,
+    `workflow.json must declare a top-level "issueSource" object naming the batch input variant ("ghProject" / "ghRepoIssues" / "explicit"). See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Add an "issueSource" entry, e.g. { "kind": "ghRepoIssues", "projectMembership": "unbound" }, to the top level of workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceUnknownKind(
+  kind: unknown,
+  validKinds: readonly string[],
+): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-002",
+    `Workflow config: issueSource.kind=${
+      JSON.stringify(kind)
+    } is not a known IssueSource variant.`,
+    `issueSource.kind must be one of [${
+      validKinds.join(", ")
+    }]. See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Replace issueSource.kind with one of [${validKinds.join(", ")}].`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceGhProjectMissingProject(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-003",
+    `Workflow config: issueSource.kind="ghProject" requires a "project" reference.`,
+    `The ghProject variant must carry a ProjectRef (either { owner, number } or { id }). See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Add "project": { "owner": "<owner>", "number": <n> } (or "project": { "id": "<node-id>" }) to issueSource.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceExplicitMissingIds(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-004",
+    `Workflow config: issueSource.kind="explicit" requires a non-empty "issueIds" array.`,
+    `The explicit variant lists issue ids statically; an empty list cannot drive a batch. See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Set "issueIds": [<id>, ...] on issueSource with at least one entry.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceGhRepoInvalidMembership(
+  membership: unknown,
+  validValues: readonly string[],
+): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-005",
+    `Workflow config: issueSource.projectMembership=${
+      JSON.stringify(membership)
+    } is not a valid value.`,
+    `When declared, projectMembership must be one of [${
+      validValues.join(", ")
+    }]. Default (omitted) is "unbound" — see agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Set issueSource.projectMembership to one of [${
+      validValues.join(", ")
+    }] or omit the field to inherit the default.`,
+    "workflow.json",
+  );
+}
+
+// --- AC-BUNDLE: AgentBundle aggregate boot validation ---
+//
+// `AgentBundle` aggregates `agent.json` + `steps_registry.json` +
+// `workflow.json.agents.{id}` into a single declarative ADT (design
+// 13 §B). Boot rule A1 enforces unique `id` across the workflow's agent
+// map. Promoted to a `ValidationError` ADT variant by T1.4.
+
+export function acBundleDuplicateId(
+  agentId: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-BUNDLE-001",
+    `AgentBundle id "${agentId}" is declared by more than one bundle in the same workflow.`,
+    `AgentBundle.id must be unique across a workflow's agent map (Boot rule A1, design 13 §G). Duplicate ids would make routing ambiguous and break the AgentRegistry lookup.`,
+    `Rename one of the duplicate agents in workflow.json.agents (and rename the matching .agent/<id>/agent.json directory + name field) so each AgentBundle id is unique.`,
+    "workflow.json",
   );
 }

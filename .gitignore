@@ -105,6 +105,9 @@ debug*.ts
 # MCP runtime config
 .agent/climpt/mcp/
 
+# Shared agent runtime output (kind_at_triage, future common artifacts)
+.agent/climpt/out/
+
 # Examples runtime artifacts (created by E2E pipeline)
 examples/.agent/
 examples/agents/

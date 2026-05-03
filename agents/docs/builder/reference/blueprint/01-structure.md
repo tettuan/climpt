@@ -154,6 +154,7 @@ steps_registry.json の内容をそのまま書く。
 "validators": {
   "git-clean": {
     "type": "command",
+    "phase": "postllm",
     "command": "git status --porcelain",
     "successWhen": "empty",
     "failurePattern": "git-dirty",
@@ -177,7 +178,8 @@ steps_registry.json の内容をそのまま書く。
     "name": "Issue Validation",
     "c2": "retry",
     "c3": "issue",
-    "validationConditions": [
+    "preflightConditions": [],
+    "postLLMConditions": [
       { "validator": "git-clean" },
       { "validator": "type-check" }
     ],

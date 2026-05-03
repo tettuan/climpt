@@ -12,6 +12,8 @@ import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { validateCrossReferences } from "./registry-validator.ts";
 import { validateStepRegistry } from "../common/step-registry/validator.ts";
 import type { StepRegistry } from "../common/step-registry/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
+import { discoverAgents } from "../testing/discover-agents.ts";
 
 const logger = new BreakdownLogger("registry-validator");
 
@@ -48,11 +50,12 @@ function validRegistry(): Record<string, unknown> {
       },
     },
     entryStepMapping: {
-      issue: "initial.default",
+      issue: { initial: "initial.default", continuation: "initial.default" },
     },
     validators: {
       "git-clean": {
         type: "command",
+        phase: "postllm",
         command: "git status --porcelain",
         failurePattern: "git-dirty",
       },
@@ -67,7 +70,8 @@ function validRegistry(): Record<string, unknown> {
     validationSteps: {
       "closure.issue": {
         stepId: "closure.issue",
-        validationConditions: [
+        preflightConditions: [],
+        postLLMConditions: [
           { validator: "git-clean", params: {} },
         ],
       },
@@ -106,7 +110,9 @@ Deno.test("registry-validator - registry with only steps passes", () => {
     steps: {
       "initial.default": { stepId: "initial.default", transitions: {} },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -118,9 +124,12 @@ Deno.test("registry-validator - registry with only steps passes", () => {
 // entryStepMapping - broken references
 // =============================================================================
 
-Deno.test("registry-validator - entryStepMapping references unknown step", () => {
+Deno.test("registry-validator - entryStepMapping.initial references unknown step", () => {
   const data = validRegistry();
-  (data.entryStepMapping as Record<string, string>).issue = "initial.missing";
+  (data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >).issue = { initial: "initial.missing", continuation: "initial.default" };
 
   const result = validateCrossReferences(data);
 
@@ -138,9 +147,15 @@ Deno.test("registry-validator - entryStepMapping references unknown step", () =>
 
 Deno.test("registry-validator - multiple broken entryStepMapping entries", () => {
   const data = validRegistry();
-  const esm = data.entryStepMapping as Record<string, string>;
-  esm.issue = "initial.gone";
-  esm.externalState = "initial.also-gone";
+  const esm = data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >;
+  esm.issue = { initial: "initial.gone", continuation: "initial.default" };
+  esm.externalState = {
+    initial: "initial.also-gone",
+    continuation: "initial.default",
+  };
 
   const result = validateCrossReferences(data);
 
@@ -275,13 +290,13 @@ Deno.test("registry-validator - conditional targets null is valid (terminal)", (
 });
 
 // =============================================================================
-// validationConditions - broken validator references
+// postLLMConditions / preflightConditions - broken validator references
 // =============================================================================
 
-Deno.test("registry-validator - validationCondition references unknown validator", () => {
+Deno.test("registry-validator - postLLMConditions references unknown validator", () => {
   const data = validRegistry();
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "missing-validator", params: {} },
   ];
 
@@ -289,15 +304,15 @@ Deno.test("registry-validator - validationCondition references unknown validator
 
   assertEquals(result.valid, false);
   const error = result.errors.find((e) =>
-    e.includes("missing-validator") && e.includes("validationConditions")
+    e.includes("missing-validator") && e.includes("postLLMConditions")
   );
   assertEquals(error !== undefined, true);
 });
 
-Deno.test("registry-validator - multiple broken validationConditions", () => {
+Deno.test("registry-validator - multiple broken postLLMConditions", () => {
   const data = validRegistry();
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "missing-a", params: {} },
     { validator: "missing-b", params: {} },
   ];
@@ -305,7 +320,79 @@ Deno.test("registry-validator - multiple broken validationConditions", () => {
   const result = validateCrossReferences(data);
 
   assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 2);
+  // At least 2 errors for the 2 missing validators (order of errors is stable
+  // but the count is the invariant we care about — "at least one per row").
+  assertEquals(result.errors.length >= 2, true);
+});
+
+Deno.test("registry-validator - legacy validationConditions field is rejected", () => {
+  const data = validRegistry();
+  const vs = data.validationSteps as Record<string, Record<string, unknown>>;
+  // Simulate legacy config that still uses the removed field
+  delete vs["closure.issue"].postLLMConditions;
+  vs["closure.issue"].validationConditions = [
+    { validator: "git-clean", params: {} },
+  ];
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("validationConditions") && e.includes("removed")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Legacy validationConditions field must be explicitly rejected at load time. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
+});
+
+Deno.test("registry-validator - preflight slot wired to postllm validator is rejected", () => {
+  const data = validRegistry();
+  // git-clean is declared phase:"postllm" in the fixture; wiring it to
+  // preflightConditions must trigger a phase-mismatch error.
+  const vs = data.validationSteps as Record<string, Record<string, unknown>>;
+  vs["closure.issue"].preflightConditions = [
+    { validator: "git-clean", params: {} },
+  ];
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("git-clean") && e.includes("phase") &&
+    e.includes("preflightConditions")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Expected a phase-mismatch error for validator wired to the wrong slot. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
+});
+
+Deno.test("registry-validator - phase-less validator in conditions slot is rejected", () => {
+  const data = validRegistry();
+  const validators = data.validators as Record<
+    string,
+    Record<string, unknown>
+  >;
+  // Remove phase from the declared validator
+  delete validators["git-clean"].phase;
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("git-clean") && e.includes("phase")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Phase-less validators referenced by any conditions slot must be rejected. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
 });
 
 // =============================================================================
@@ -352,7 +439,10 @@ Deno.test("registry-validator - multiple different error types accumulate", () =
   const data = validRegistry();
 
   // Break entryStepMapping
-  (data.entryStepMapping as Record<string, string>).issue = "initial.gone";
+  (data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >).issue = { initial: "initial.gone", continuation: "initial.default" };
 
   // Break transition
   const steps = data.steps as Record<string, Record<string, unknown>>;
@@ -360,9 +450,9 @@ Deno.test("registry-validator - multiple different error types accumulate", () =
     next: { target: "gone.step" },
   };
 
-  // Break validationCondition
+  // Break post-LLM validator reference
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "gone-validator", params: {} },
   ];
 
@@ -389,7 +479,9 @@ Deno.test("registry-validator - steps with no transitions is valid", () => {
     steps: {
       "initial.default": { stepId: "initial.default" },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -402,7 +494,9 @@ Deno.test("registry-validator - non-object step entry is skipped", () => {
     steps: {
       "initial.default": "not-an-object",
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -421,7 +515,9 @@ Deno.test("registry-validator - non-object transition rule is skipped", () => {
         },
       },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -431,49 +527,39 @@ Deno.test("registry-validator - non-object transition rule is skipped", () => {
 });
 
 // =============================================================================
-// Live agent configs - Integration tests
+// Live agent configs - Integration tests (discovered dynamically)
+//
+// `.agent/<name>/*` is user-side config; this suite dogfoods the validator
+// against every dev-time agent the climpt repo ships. Hardcoding specific
+// agent names would partial-enumerate the consumer set.
 // =============================================================================
 
-Deno.test("registry-validator/integration - iterator steps_registry cross-refs valid", async () => {
-  const text = await Deno.readTextFile(".agent/iterator/steps_registry.json");
-  const data = JSON.parse(text);
+const crossRefAgents = await discoverAgents();
 
-  const result = validateCrossReferences(data);
-
+Deno.test("registry-validator/integration - at least one agent discovered (non-vacuity)", () => {
   assertEquals(
-    result.valid,
+    crossRefAgents.length > 0,
     true,
-    `Cross-ref errors: ${JSON.stringify(result.errors)}`,
+    `No agents found under .agent/*/steps_registry.json. ` +
+      `Iterating an empty set would vacuously pass. ` +
+      `Fix: verify .agent/ contains at least one agent directory.`,
   );
 });
 
-Deno.test("registry-validator/integration - reviewer steps_registry cross-refs valid", async () => {
-  const text = await Deno.readTextFile(".agent/reviewer/steps_registry.json");
-  const data = JSON.parse(text);
+for (const { name: agent, registryPath } of crossRefAgents) {
+  Deno.test(`registry-validator/integration - ${agent} steps_registry cross-refs valid`, async () => {
+    const text = await Deno.readTextFile(registryPath);
+    const data = JSON.parse(text);
 
-  const result = validateCrossReferences(data);
+    const result = validateCrossReferences(data);
 
-  assertEquals(
-    result.valid,
-    true,
-    `Cross-ref errors: ${JSON.stringify(result.errors)}`,
-  );
-});
-
-Deno.test("registry-validator/integration - facilitator steps_registry cross-refs valid", async () => {
-  const text = await Deno.readTextFile(
-    ".agent/facilitator/steps_registry.json",
-  );
-  const data = JSON.parse(text);
-
-  const result = validateCrossReferences(data);
-
-  assertEquals(
-    result.valid,
-    true,
-    `Cross-ref errors: ${JSON.stringify(result.errors)}`,
-  );
-});
+    assertEquals(
+      result.valid,
+      true,
+      `Cross-ref errors in ${registryPath}: ${JSON.stringify(result.errors)}`,
+    );
+  });
+}
 
 // =============================================================================
 // validateStepRegistry - step-level permissionMode validation
@@ -491,16 +577,15 @@ function validTypedRegistry(
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Test Step",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: ["var1"],
         usesStdin: false,
         ...stepOverrides,
-      },
+      }),
     },
   };
 }

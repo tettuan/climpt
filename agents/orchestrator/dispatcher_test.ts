@@ -299,8 +299,8 @@ Deno.test("StubDispatcher: handoffData coexists with rateLimitInfo", async () =>
 // Invariant: returns undefined when no closure step has handoffFields
 Deno.test("extractHandoffData: no closure step with handoffFields → undefined", () => {
   const registry = [
-    { stepKind: "work" as const, structuredGate: { handoffFields: ["x"] } },
-    { stepKind: "closure" as const, structuredGate: { handoffFields: [] } },
+    { kind: "work" as const, structuredGate: { handoffFields: ["x"] } },
+    { kind: "closure" as const, structuredGate: { handoffFields: [] } },
   ];
   const result = { summaries: [{ structuredOutput: { x: "value" } }] };
 
@@ -316,7 +316,7 @@ Deno.test("extractHandoffData: no closure step with handoffFields → undefined"
 Deno.test("extractHandoffData: no structuredOutput in last summary → undefined", () => {
   const registry = [
     {
-      stepKind: "closure" as const,
+      kind: "closure" as const,
       structuredGate: { handoffFields: ["final_summary"] },
     },
   ];
@@ -340,7 +340,7 @@ Deno.test("extractHandoffData: handoffFields select matching fields from structu
     next_action: { action: "closing" },
   };
   const registry = [
-    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+    { kind: "closure" as const, structuredGate: { handoffFields } },
   ];
   const result = { summaries: [{ structuredOutput }] };
 
@@ -373,7 +373,7 @@ Deno.test("extractHandoffData: non-string values are JSON-serialized", () => {
   };
   const handoffFields = ["count", "details", "label"];
   const registry = [
-    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+    { kind: "closure" as const, structuredGate: { handoffFields } },
   ];
   const result = { summaries: [{ structuredOutput }] };
 
@@ -414,7 +414,7 @@ Deno.test("extractHandoffData: dot-notation path uses last segment as variable k
   };
   const handoffFields = ["analysis.understanding"];
   const registry = [
-    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+    { kind: "closure" as const, structuredGate: { handoffFields } },
   ];
   const result = { summaries: [{ structuredOutput }] };
 
@@ -587,7 +587,7 @@ Deno.test("extractHandoffData: missing field in structuredOutput → skipped, no
   const structuredOutput: Record<string, unknown> = { present: "value" };
   const handoffFields = ["present", "absent"];
   const registry = [
-    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+    { kind: "closure" as const, structuredGate: { handoffFields } },
   ];
   const result = { summaries: [{ structuredOutput }] };
 

@@ -50,6 +50,9 @@ export interface AgentResult {
 
   /** Semantic verdict from AI structured output (e.g., "approved", "rejected") */
   verdict?: string;
+
+  /** Absolute path to the session log file (JSONL/text), when logging produced one */
+  logPath?: string;
 }
 
 /**

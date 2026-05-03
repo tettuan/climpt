@@ -1,5 +1,9 @@
 {
   "version": "1.0.0",
+  "issueSource": {
+    "kind": "ghRepoIssues",
+    "projectMembership": "unbound"
+  },
   "phases": { "complete": { "type": "terminal" } },
   "labelMapping": {},
   "agents": {}
