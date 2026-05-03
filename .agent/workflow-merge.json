@@ -12,6 +12,11 @@
       "priority": 1,
       "agent": "merger"
     },
+    "ci-pending": {
+      "type": "actionable",
+      "priority": 2,
+      "agent": "ci-recheck"
+    },
     "merge-blocked": {
       "type": "blocking"
     },
@@ -21,6 +26,7 @@
   },
   "labelMapping": {
     "ready": "merge-ready",
+    "ci-pending": "ci-pending",
     "blocked": "merge-blocked",
     "done": "merged"
   },
@@ -30,7 +36,7 @@
       "directory": "merger",
       "outputPhases": {
         "merged": "merged",
-        "ci-pending": "merge-ready",
+        "ci-pending": "ci-pending",
         "approvals-missing": "merge-blocked",
         "conflicts": "merge-blocked",
         "rejected": "merge-blocked"
@@ -41,6 +47,16 @@
         "cascade": false,
         "condition": "merged"
       }
+    },
+    "ci-recheck": {
+      "role": "validator",
+      "directory": "ci-recheck",
+      "outputPhases": {
+        "green": "merge-ready",
+        "red": "merge-blocked",
+        "timeout": "merge-blocked"
+      },
+      "fallbackPhase": "ci-pending"
     }
   },
   "rules": {
