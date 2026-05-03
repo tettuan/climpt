@@ -190,8 +190,13 @@ Starting points for grep / sed / jq:
   `outbox-processor.ts`, and `verdict/external-state-adapter.ts`:
   every close now flows through a declarative `Channel.execute` —
   the orchestrator no longer calls `closeIssue` directly.
-- Hook O1 (project goal injection on dispatch) — superseded by
+- Hook O1 removal (project goal injection on dispatch) — superseded by
   [#540](https://github.com/tettuan/climpt/issues/540) (v1.15.0)
+
+### Fixed
+- Propagate `iteratorFailed` context into revision loop so downstream
+  agents receive failure diagnostics from the preceding iteration
+
 ## [1.13.27] - 2026-04-20
 
 ### Fixed
