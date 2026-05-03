@@ -60,7 +60,8 @@
     }
   },
   "rules": {
-    "maxCycles": 3,
+    "maxCycles": 8,
+    "maxConsecutivePhases": 3,
     "cycleDelayMs": 60000
   },
   "subjectStore": {
