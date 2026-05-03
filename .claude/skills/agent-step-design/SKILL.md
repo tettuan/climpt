@@ -75,7 +75,7 @@ flowchart TD
 | **6.6. Cascade re-validate** | orphan 削除直後 | `--validate` 再実行 | 大量削除を 1 commit で済ますと UV reachability 違反。leaf-first で削除し各 layer 後に再 validate |
 | **6.7. Prompt body discipline** | 各 step prompt (`prompts/steps/<c2>/<c3>/f_<edition>[_<adaptation>].md`) | R8 split-trigger / R9 repeat 収束 / R10 adaptation diff の 3 axis 確認 | §Anti-Patterns 参照 |
 | 7. Validate | 完成 `steps_registry.json` | `Validation passed.` | §Validation 節 |
-| **8. Runtime audit** | `tmp/logs/` の ≥3 session JSONL | (signal, suspected rule violation, target phase) リスト | §Runtime Audit 節。drift 検出 → 指定 phase ループ |
+| **8. Runtime audit** | `tmp/logs/` の ≥3 session JSONL / `cycle_exceeded` 観測時は workflow-state.json | (signal, suspected rule violation, target phase) リスト | §Runtime Audit + §Exceeded forensics。drift 検出 → 指定 phase ループ |
 
 step record / `structuredGate` / C3LAddress (5-tuple) の field 定義は [`references/registry-shape.md`](references/registry-shape.md) を参照。
 
@@ -180,6 +180,38 @@ deno task agent --validate --agent <agent-name>
 
 **Tooling delegation**: 実 log の読取 / digest は `/logs-analysis` skill に委譲 (本 skill は signal → rule mapping と re-enter phase 決定を担う)。`/logs-analysis` Step 4 で得た JSON を main (Opus) が読み、上表で Phase 8 出力 (signal, suspected rule, target phase) を作る。Haiku/Sonnet には解釈を任せない (`/logs-analysis` 責任分担表に従う)。
 
+### Exceeded forensics (per-step intent deviation)
+
+`"status": "cycle_exceeded"` (orchestrator-level) は「該当 agent の step が意図した挙動を取らなかった」evidence。`maxCycles` 閾値を上げる前に、どの step がループ起点かを特定し、R1–R10 のどれが破れているかを step 単位で診断する。機構詳細 (subjectStore / cycleCount 復元 / writeWorkflowState) は `/workflow-consistency` skill §"Exceeded History Analysis" の正典を参照。本 sub-section は per-step diagnosis に集中する。
+
+#### Source artifacts
+
+| Artifact | Path | 何が分かるか |
+|----------|------|--------------|
+| workflow-state | `.agent/climpt/tmp/issues-execute/<N>/workflow-state.<workflowId>.json` | phase 列 / agent 列 / outcome 列 (= どの step / phase が repeat したか) |
+| per-agent session JSONL | `tmp/logs/<agent>/*.jsonl` | step 単位の Assistant SO / verdict / iteration count |
+| orchestrator session JSONL | `tmp/logs/orchestrator/*.jsonl` | dispatch 結果 / fallback intent / cycle 増分 trigger |
+
+#### Diagnosis 手順
+
+1. workflow-state を `jq` で読み、history の `phase` × `agent` × `outcome` を時系列で並べる (`/logs-analysis` 経由でも可)
+2. 同 agent の連続 entry を抽出 (= per-agent step loop 起点候補)
+3. 該当 agent の per-agent JSONL を `/logs-analysis` で digest し、ループ中の step ID と verdict を取得
+4. 下表で step pattern → suspected R を引き、対応 phase へ戻る
+
+| Step pattern (repeat 軌跡) | suspected R | re-enter phase |
+|----------------------------|-------------|----------------|
+| 同 step が `repeat` を連発し livelock | R9 (retry 収束保証なし) | Phase 6.7 R9 audit |
+| 同 step が verdict 出すが orchestrator は同 phase に戻す (4-mirror drift) | R5 / R6 (verdict 列挙不一致 / intent-name 不整合) | Phase 6.5 |
+| `f_failed_<adaptation>` 切替後も同 SO が続く | R10 (adaptation directive 不変) | Phase 6.7 R10 audit |
+| step が前提不一致で blocked → 再 dispatch される | R4 (start condition 不明文化) | Phase 1 / 4 |
+| step description と Schema enum が乖離した状態で transition 連発 | R5 (description drift) | Phase 6.5 |
+| 1 step が複数 deliverable を抱え滞留 | R3 / R8 split-trigger | Phase 3 + 6.7 |
+
+#### 反パターン (前提)
+
+`cycle_exceeded` 観測 → 即座に `rules.maxCycles` 引き上げ は禁止。閾値を上げても step 意図不一致は解消せず、grind の長さが伸びるだけ。step 設計修正後 (R3/R8/R9/R10 のいずれか) → workflow-state を `rm` してから再実行 (Manual reset 手順は `/workflow-consistency` skill 参照)。閾値の引き上げは R3/R8/R9/R10 解消が verify されてからの最後の調整。
+
 ## Anti-Patterns
 
 | Anti-pattern | なぜダメか | 直し方 |
@@ -195,6 +227,7 @@ deno task agent --validate --agent <agent-name>
 | **`uvVariables` 宣言の存在を R7 pass の根拠にする** (本文 `{uv-<key>}` grep をスキップ) | R7 違反。declared だが unused な UV が累積し warning が常態化 | 各 declared key を prompt 本文で `{uv-<key>}` grep。不在なら宣言削除 or 本文に追加 |
 | **Verdict in `## Do ONLY this` / open-ended scope in prompt** | R8 (2)(3) 違反。verdict 条件が読めない / scope が 1 execution で閉じず livelock | dedicated `## Verdict` section に `next` / `repeat` 条件を 1 bit ずつ。scope を 1 execution 完結に縮小し進捗 anchor で外部化。縮小不能なら 2 step 分割 |
 | **`repeat` w/o retry-aware framing / `f_failed_<adaptation>.md` byte-identical to default** | R9 / R10 違反。retry context 不参照で livelock / directive 不変で failure loop 継続 | R9: 冒頭で `completed_iterations` 参照し N 回目以降 path 分岐を明示、または TodoWrite で前回進捗を anchor。R10: `f_default` と diff を取り Action を failure-specific 化、意味的に書けなければ failurePattern を削除 |
+| **`cycle_exceeded` を agent 設計問題ではなく orchestrator 閾値問題と誤診** | exceeded は「step が意図通り動かなかった」signal。`rules.maxCycles` を上げる対処は step 不全を温存し、grind 時間を伸ばすだけ | §Exceeded forensics の表で step pattern → R を引き、R3/R8/R9/R10 のいずれかとして step 設計を直す。閾値の引き上げは設計修正 verify 後の最後の調整 |
 
 ## References
 
@@ -210,6 +243,8 @@ Shape 正典: [`references/archetypes.md`](references/archetypes.md) (taxonomy +
 
 Code citation: `agents/scripts/run-agent.ts:168-507` (`--validate` 実装) / `agents/config/mod.ts` (`validateFull`) / `agents/config/flow-validator.ts` (`BOUNDARY_RULES` P2-3, §StepKind Boundary Rules 出典)。
 
-**Cross-skill (load-bearing for Phase 8)**: `/logs-analysis` — `tmp/logs/` 配下の orchestrator session JSONL / per-agent JSONL の digest 化と行特定を担う。本 skill は signal → rule mapping を担当 (log 読取 procedure は `/logs-analysis` 側を参照、重複定義しない)。
+**Cross-skill (load-bearing for Phase 8)**:
+- `/logs-analysis` — `tmp/logs/` 配下の orchestrator session JSONL / per-agent JSONL の digest 化と行特定を担う。本 skill は signal → rule mapping を担当 (log 読取 procedure は `/logs-analysis` 側を参照、重複定義しない)。
+- `/workflow-consistency` — workflow-state JSON / cycleCount 永続化機構の正典。Exceeded forensics で per-step diagnosis に進む前に、cross-agent graph 起源 (R5/R6/R9 cross-agent 違反) を排除する場合に参照。
 
 Further reading (optional, may be stale): `agents/docs/builder/` 配下の guide は scheme drift の可能性があるため、本 skill の reference と矛盾した場合は **本 skill 側を優先**。
