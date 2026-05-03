@@ -1,0 +1,55 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "ci-recheck",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": {
+      "initial": "recheck",
+      "continuation": "recheck"
+    }
+  },
+  "steps": {
+    "recheck": {
+      "stepId": "recheck",
+      "name": "CI Recheck Closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "recheck",
+        "edition": "default"
+      },
+      "uvVariables": [
+        "prNumber"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: observe PR CI status via gh, post one timestamped recheck comment (state mutation, R5), emit verdict in {green, red, timeout, still-running}. green/red/timeout route to terminal phases; still-running routes back via fallbackPhase=ci-pending (Retry Loop, R9 declared).",
+      "outputSchemaRef": {
+        "file": "ci-recheck.schema.json",
+        "schema": "closure.recheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "failFast": false,
+        "handoffFields": [
+          "verdict",
+          "summary",
+          "comment_body"
+        ]
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        }
+      }
+    }
+  }
+}

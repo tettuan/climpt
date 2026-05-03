@@ -10,7 +10,8 @@ uvVariables:
 # Task: Classify one open GitHub Issue
 
 You are dispatched with `--issue {uv-issue}`. Classify it into one of
-`kind:impl`, `kind:consider`, `kind:design`, and emit a closing structured
+`kind:impl`, `kind:detail`, `kind:consider`, `kind:plan` (the `kind:*`
+subset of `workflow.json#labelMapping`), and emit a closing structured
 output. The poll:state boundary hook applies the chosen label via
 `gh issue edit`. Do **not** call `gh issue edit` yourself. You do **not**
 assign `order:N` — that is the prioritizer's role.
@@ -76,11 +77,23 @@ naming the conflicting label. Do not emit `issue.labels.add`. Stop.
 Apply the classification heuristics from the system prompt to the
 `title + body` you fetched in Step 0. Choose exactly one of:
 
-- `kind:impl` — concrete code/config change, scope clear
+- `kind:impl` — concrete code/config change with clear scope and
+  acceptance condition (→ iterator)
+- `kind:detail` — implementation specification (target files, functions,
+  approach, acceptance criteria) needed before iterator can pick it up
+  (→ detailer)
 - `kind:consider` — question, design review, decision-needed
-- `kind:design` — design document or architectural blueprint requested
+  (→ considerer)
+- `kind:plan` — project-level sentinel asking the planner to derive
+  follow-up issues from the project README goal vs current state
+  (→ project-planner)
 
-When `impl` and `consider` both apply, prefer `kind:consider`.
+Apply tie-breakers from the system prompt:
+1. consider vs detail → consider
+2. impl vs consider → consider
+3. impl vs detail → detail
+4. `kind:plan` is sentinel-only — never pick it for a single feature
+   request.
 
 ## Step 3 — Emit closing structured output
 
@@ -102,7 +115,8 @@ message. Do not call `gh issue edit`. The boundary hook handles labels.
 }
 ```
 
-Replace `<kind>` with the chosen `kind:impl|kind:consider|kind:design`.
+Replace `<kind>` with the chosen
+`kind:impl|kind:detail|kind:consider|kind:plan`.
 The `add` array MUST contain exactly one string.
 
 Do not write any files. Do not post issue comments. Do not call

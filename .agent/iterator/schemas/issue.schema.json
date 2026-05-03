@@ -110,7 +110,7 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["next", "repeat", "handoff"],
+            "enum": ["next", "repeat"],
             "description": "Intent for continuation step"
           },
           "reason": { "type": "string" },
@@ -138,6 +138,87 @@
         }
       },
       "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "closure.issue.precheck-kind-read": {
+    "type": "object",
+    "description": "Audit-only kind-read precheck step. Always emits next; never repeats. Action enum is restricted to ['next'] to prevent self-loops on a best-effort artifact read.",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "additionalProperties": false,
+    "properties": {
+      "stepId": { "type": "string" },
+      "status": { "type": "string" },
+      "summary": { "type": "string" },
+      "tools_used": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next"],
+            "description": "Intent for closure.issue.precheck-kind-read (next-only — kind_at_triage is best-effort and never gates the chain)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
+      "issue": {
+        "type": "object",
+        "description": "Issue情報",
+        "properties": {
+          "number": { "type": "integer" },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "add": { "type": "array", "items": { "type": "string" } },
+              "remove": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at run start, propagated via handoffFields"
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1 carry-over: commits in this run referencing (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3 carry-over",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only. Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt; null on missing/invalid. Do not branch behavior on this field — the live kind:* label is authoritative."
+      }
     }
   },
 
@@ -239,13 +320,22 @@
           }
         }
       },
-      "ac_coverage_complete": {
+      "ac_evidence_all_nonempty": {
         "type": "boolean",
-        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
       },
       "missing_ac_ids": {
         "type": "array",
-        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
         "items": { "type": "string" }
       },
       "kind_at_triage": {
@@ -437,13 +527,22 @@
           }
         }
       },
-      "ac_coverage_complete": {
+      "ac_evidence_all_nonempty": {
         "type": "boolean",
-        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
       },
       "missing_ac_ids": {
         "type": "array",
-        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
         "items": { "type": "string" }
       },
       "kind_at_triage": {

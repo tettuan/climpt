@@ -2,8 +2,6 @@
 stepId: closure.consider.precheck-kind-scope
 name: Precheck - Record Considerer Boundary Findings
 description: Record findings about this run's changed paths under considerer's source-edit boundary. Always emits next; closure consider step decides verdict.
-uvVariables:
-  - issue
 ---
 
 # Goal: Record findings about source files this run modified outside `tests/`
@@ -26,17 +24,21 @@ this run's changed paths. Test files under `tests/**` are permitted (the
 considerer may add evidence-gathering tests). Markdown / json / yaml are
 permitted (response artifacts, deferred items).
 
-## Inputs
+## Inputs (handoff)
 
-- (none) — boundary check is a property of the *current working tree*, not of
-  any commit history. Considerer never commits, so any source edits this
+- `doc_paths_required`, `doc_diff_results`, `doc_evidence`,
+  `kind_at_triage` — passed through the handoff chain (not consumed here;
+  preserved for downstream).
+- Boundary check is a property of the *current working tree*, not of any
+  commit history. Considerer never commits, so any source edits this
   invocation made are uncommitted by definition.
 
 ## Outputs
 
 - `kind_boundary_violations: [{path: string, reason: string}]` — empty iff
   this run's working tree contains no uncommitted source-file edits outside
-  `tests/`.
+  `tests/`. Schema: `closure.consider.precheck-kind-scope` in
+  `schemas/considerer.schema.json`.
 
 ## Action
 
@@ -71,12 +73,13 @@ permitted (response artifacts, deferred items).
    step reads it and emits `handoff-detail` if non-empty (Step 4-pre
    override).
 
-4. Intent: always `next`. Transition target is `consider` (terminal
-   closure). There is no retry path on this step.
+## Verdict
+
+- `next` — always emitted. Transitions to terminal `consider` (closure
+  step). There is no retry path on this step.
 
 ## Do ONLY this
 
 - Do not edit files, revert, or run `git restore` here.
 - Do not inspect file contents; match on path strings only.
 - Do not branch on `kind_at_triage` — it is audit-only.
-- Do not emit intents other than `next`.

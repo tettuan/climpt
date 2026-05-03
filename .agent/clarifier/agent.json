@@ -3,7 +3,7 @@
   "version": "1.13.28",
   "name": "clarifier",
   "displayName": "Clearance Clarifier Agent",
-  "description": "Reads a single GitHub Issue labeled 'need clearance', applies the 5-gate rubric, posts a verdict comment, and emits a routing verdict so the orchestrator transitions the phase to impl-pending, consider-pending, or back to blocked.",
+  "description": "Reads a single GitHub Issue labeled 'need clearance', applies the 5-gate rubric, posts a verdict comment, and emits a routing verdict so the orchestrator transitions the phase to impl-pending or consider-pending.",
   "parameters": {
     "issue": {
       "type": "number",

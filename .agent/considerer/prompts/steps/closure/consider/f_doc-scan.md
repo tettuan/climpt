@@ -8,12 +8,13 @@ uvVariables:
 
 # Goal: Extract every doc path mentioned in issue body and comments
 
-## Inputs
-- `{uv-issue}` — GitHub issue number
+## Inputs (handoff)
+- `{uv-issue}` — GitHub issue number (entry-step UV; no upstream handoff fields).
 
 ## Outputs
 - `doc_paths_required: [string]` — distinct file paths in canonical doc
-  directories. Matching prefixes:
+  directories. Schema: `closure.consider.doc-scan` in
+  `schemas/considerer.schema.json`. Matching prefixes:
   - `docs/**`
   - `agents/docs/**`
 
@@ -36,9 +37,12 @@ uvVariables:
    contain `docs` or `design` substrings — those are working files, not
    permanent documentation.
 
+## Verdict
+- `next` — extraction completed (including empty list). Transitions to
+  `closure.consider.doc-verify`.
+- `repeat` — `gh issue view` parse / network failure. Re-runs this step.
+
 ## Do ONLY this
 - Do not read any of the referenced files.
 - Do not run commands other than the single `gh issue view --json …` call in Action step 1.
-- Do not emit any other artifact field.
-- Do not emit intents other than `next` (on successful extraction, including empty list)
-  or `repeat` (only on parse / gh failure).
+- Do not emit any other artifact field beyond `doc_paths_required`.

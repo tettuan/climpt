@@ -22,7 +22,7 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 1
+        "maxIterations": 5
       }
     },
     "integrations": {
@@ -34,8 +34,7 @@
             "add": [],
             "remove": []
           }
-        },
-        "defaultClosureAction": "label-only"
+        }
       }
     },
     "logging": {

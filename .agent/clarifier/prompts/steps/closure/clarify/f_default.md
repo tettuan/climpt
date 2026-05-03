@@ -12,11 +12,84 @@ You process exactly one issue (#{uv-issue}). The orchestrator has
 already selected this issue from the `blocked` phase queue. Your job:
 apply the 5-gate rubric, post a verdict comment, emit a verdict string.
 
+## Inputs (handoff)
+
+- `{uv-issue}` — GitHub Issue number (uvVariable, required). The
+  orchestrator has already dispatched this agent for one specific
+  `need clearance` issue.
+- Source-of-truth docs (read-only, for Gate 1 / 2 rationales):
+  - `.agent/workflow-issue-states.md` (state machine, responsibility matrix)
+  - `/CLAUDE.md` (tenets: 全域性 / Core-first / No BC / fallback 最小限 / reviewer precision)
+- Codebase access via `Grep` / `Glob` / `Read` — for Gate 3 anchor
+  discovery only.
+
+Precondition (R4 fail-fast): the issue MUST carry the `need clearance`
+label. The orchestrator's `blocked` phase queue gates this, but
+defend in depth: after reading the issue (Action Step 1), if
+`labels[].name` does not include `need clearance`, abort with
+`status: "failed"` (see `## Verdict` below) — do not proceed to gates.
+
+## Outputs
+
+Emit one JSON object matching `closure.clarify` in
+`schemas/clarifier.schema.json`. Required fields:
+
+- `stepId: "clarify"`
+- `status: "completed" | "failed"`
+- `summary` — one-line human-readable summary
+- `next_action.action: "closing"` (always — single-iteration; the
+  schema enum is `["closing"]` only)
+- `verdict: "ready-to-impl" | "ready-to-consider"`
+- `rationale.gates` — exactly 5 entries (alignment, state-machine,
+  scope, acceptance, dependency); each with `pass: boolean` and
+  non-empty `note`
+- `final_summary` — one-paragraph recap of verdict reasoning
+  (used as commentTemplates variable on handoff)
+
+Side effect (the only write channel): exactly one comment posted on
+issue #{uv-issue} via `gh issue comment` (see `## Action` Step 5).
+Comment URL is recorded by `gh` stdout but is not part of the
+structured output.
+
+## Verdict
+
+Always emit `next_action.action: "closing"`. This step is
+single-iteration (`maxIterations: 1`); the orchestrator owns all
+phase / label transitions via `outputPhases`. The schema enum is
+`["closing"]` — no other intent is declared, allowed, or emitted.
+
+The `verdict` field (separate from `next_action.action`) routes
+phase transitions:
+
+- All 5 gates pass AND `EXISTING_KIND = kind:impl` →
+  `verdict = "ready-to-impl"`.
+- All 5 gates pass AND `EXISTING_KIND = kind:consider` →
+  `verdict = "ready-to-consider"`.
+- All 5 gates pass AND `EXISTING_KIND` empty → pick via system-prompt
+  rule-of-thumb table (`質問/相談/検討` → `ready-to-consider`,
+  named files/functions + bug + repro → `ready-to-impl`, both →
+  `ready-to-consider`).
+- Any gate fails → `verdict = "ready-to-consider"` (considerer
+  absorbs ambiguity; record the failing gate in the comment).
+
+`EXISTING_KIND = kind:detail` → orchestrator will not dispatch
+clarifier to this issue (`blocked` phase only fires when `need
+clearance` is the actionable label). If you somehow reach this
+state anyway, emit `verdict = "ready-to-consider"` with `alignment`
+fail, note = "detailer-owned, clarifier should not be invoked".
+
+Fail-fast (R4): if precondition check finds `need clearance` is
+absent, emit `status: "failed"`, `verdict: "ready-to-consider"`,
+and `summary: "missing need-clearance label — aborted before rubric"`.
+Do not post a comment, do not run the rubric.
+
+## Action
+
 Execute every bash block via `bash -c '...'`. `set -euo pipefail` at
 the top of each block. zsh has divergent `!` and here-string semantics
 that would cause silent failures.
 
-## Step 1 — Read the issue
+### Step 1 — Read the issue
 
 ```bash
 bash -c '
@@ -39,7 +112,11 @@ Alternative read path: use the GitHubRead MCP tool
 (`mcp__github__github_read` with `operation: "issue_view"`,
 `number: {uv-issue}`).
 
-## Step 2 — Research (evidence-only)
+**Precondition check (fail-fast)**: if `labels[].name` does NOT
+contain `need clearance`, stop here. Skip Steps 2–5 and emit
+`status: "failed"` per `## Verdict` fail-fast clause.
+
+### Step 2 — Research (evidence-only)
 
 Investigate the question using read-only tools. Gate 1 / 2 require
 citations from `.agent/workflow-issue-states.md` and `/CLAUDE.md`.
@@ -52,7 +129,7 @@ comments, or the codebase via Grep/Glob/Read.
   for Gate 1 / 2 rationales.
 - Do NOT read other docs for judgment (source-of-truth discipline).
 
-## Step 3 — Apply the rubric
+### Step 3 — Apply the 5-gate rubric
 
 Evaluate in order. Record pass/fail + short note per gate.
 
@@ -77,25 +154,12 @@ Short-circuit rule: the **first failing gate** determines the comment's
 recorded (the schema requires all 5 entries). The verdict itself is
 locked to `ready-to-consider` as soon as any gate fails.
 
-## Step 4 — Decide verdict
+### Step 4 — Decide verdict
 
-- All 5 gates pass AND `EXISTING_KIND = kind:impl` →
-  verdict = `ready-to-impl`.
-- All 5 gates pass AND `EXISTING_KIND = kind:consider` →
-  verdict = `ready-to-consider`.
-- All 5 gates pass AND `EXISTING_KIND` empty → pick via system-prompt
-  table (`質問/相談/検討` → `ready-to-consider`, named files/functions
-  + bug + repro → `ready-to-impl`, both → `ready-to-consider`).
-- Any gate fails → verdict = `ready-to-consider` (considerer absorbs
-  ambiguity; record the failing gate in the comment).
+Apply the rules in `## Verdict` above to pick
+`ready-to-impl` or `ready-to-consider`.
 
-`EXISTING_KIND = kind:detail` → orchestrator will not dispatch
-clarifier to this issue (`blocked` phase only fires when `need
-clearance` is the actionable label). If you somehow reach this state
-anyway, emit `ready-to-consider` with `alignment` fail, note =
-"detailer-owned, clarifier should not be invoked".
-
-## Step 5 — Compose + post the verdict comment
+### Step 5 — Compose + post the verdict comment
 
 Follow the template in the system prompt exactly. Write the comment
 body to a scratch file first, then post it.
@@ -137,7 +201,7 @@ gh issue comment {uv-issue} --body-file "$TMPDIR/clarifier-{uv-issue}-comment.md
 intentionally unblocked by `BOUNDARY_BASH_PATTERNS`; see
 `agents/docs/builder/08_github_integration.md` §「コメント投稿の経路」.
 
-## Step 6 — Emit structured output
+### Step 6 — Emit structured output
 
 Return a JSON object matching `closure.clarify` in
 `schemas/clarifier.schema.json`:
@@ -172,7 +236,7 @@ Rules:
   `ready-to-consider` — no self-loop back to `blocked`.
 - `next_action.action` is always `"closing"` (single-iteration).
 
-## Step 7 — Final status
+### Step 7 — Final status
 
 Output a single-line summary:
 
@@ -184,11 +248,14 @@ On failure at any step, stop and report which step failed with the
 full command output. Do not retry silently. Do NOT attempt
 `gh issue close`, `gh issue edit`, or any label/body mutation.
 
-## Forbidden commands
+## Do ONLY this
 
-All of these are blocked by `BOUNDARY_BASH_PATTERNS` (see
-`agents/common/tool-policy.ts`). They will be refused at the canUseTool
-hook — do not attempt them:
+The single required action: read issue #{uv-issue}, apply the 5-gate
+rubric, post exactly one comment, emit one JSON object per the schema.
+
+Forbidden — all blocked by `BOUNDARY_BASH_PATTERNS` (see
+`agents/common/tool-policy.ts`); they will be refused at the
+canUseTool hook, do not attempt them:
 
 - `gh issue edit <N>` with any option (labels, body, title, state)
 - `gh issue close`
@@ -197,3 +264,12 @@ hook — do not attempt them:
 - `gh api <any-method>`
 - `curl https://api.github.com/...` and equivalents via
   `wget` / `python` / `node` / `ruby` / `perl` / `deno`
+
+Also forbidden:
+
+- Editing the issue body (C3 — comment-only)
+- Touching `order:N` labels (C2 — triager responsibility)
+- Inventing scope not justified by body + comments
+- Recursing into dependencies (`gh issue view #DEP` etc.)
+- Emitting any `next_action.action` other than `"closing"` (schema
+  enum is `["closing"]` only — any other value is a schema violation)
