@@ -189,7 +189,7 @@ iterator が self-cycle に閉じている結果、`reach(impl-pending)` の for
 
 ## Example 4: R7 sentinel-reuse exception (現行 `.agent/workflow.json` の `project-planner`)
 
-R7 通常 rule では「terminal 出力 ⇒ 実 close kind 必須」だが、sentinel-reuse pattern は唯一の exception。
+R7 通常 rule では「terminal 出力 ⇒ 実 close kind 必須」だが、sentinel-reuse pattern は唯一の exception。close-skip だけが目的のときは marker label 宣言 + prompt verbatim 記述で成立し、`projectBinding` ブロックは不要。
 
 ### 抜粋
 
@@ -199,6 +199,13 @@ R7 通常 rule では「terminal 出力 ⇒ 実 close kind 必須」だが、sen
     "plan-pending": { "type": "actionable", "priority": 5, "agent": "project-planner" },
     "done":         { "type": "terminal" }
   },
+  "labels": {
+    "project-sentinel": {                             // marker label 宣言で exception 条件 (1) を満たす
+      "role": "marker",
+      "color": "...",
+      "description": "Long-lived sentinel for the project planner cycle"
+    }
+  },
   "agents": {
     "project-planner": {
       "role": "transformer",
@@ -206,22 +213,31 @@ R7 通常 rule では「terminal 出力 ⇒ 実 close kind 必須」だが、sen
       "outputPhase": "done",                          // terminal を出力
       "fallbackPhase": "blocked",
       "closeBinding": {
-        "primary": { "kind": "none" },                // 通常なら R7 違反
+        "primary": { "kind": "none" },                // 通常なら R7 違反 / exception で許容
         "cascade": false
       }
     }
-  },
-  "projectBinding": {
-    "sentinelLabel": "project-sentinel"
   }
+  // projectBinding ブロックは未宣言 — close-skip 単独では不要 (loader が evalPhase + evaluator agent を強制するため、
+  // cascade-close / parent-project inheritance が必要なケースに限り追加で declare する)
 }
 ```
 
 ### Why R7 が満たされる (exception 適用)
 
-- **Condition (1) sentinel-only**: `project-planner` が dispatch される subject は `agents/scripts/project-init.ts:108-113` で生成される sentinel issue (label: `kind:plan` + `project-sentinel`) のみ。`projectBinding.sentinelLabel = "project-sentinel"` を満たす
-- **Condition (2) documented**: `.agent/project-planner/prompts/system.md` 等で sentinel reuse 旨が記載される (reviewer は path + line citation を要求)
+- **Condition (1) marker-label declared**: `workflow.json#labels.project-sentinel.role = "marker"` で marker label が宣言されている。`agents/scripts/project-init.ts:108-113` で生成される sentinel issue は常にこの label (+ `kind:plan`) を保持し、`project-planner` は sentinel subject 専用 dispatch に限定される
+- **Condition (2) documented (verbatim)**: `.agent/project-planner/prompts/system.md` の Role セクションに "Sentinel reuse — must not be closed" を verbatim で明記。label 名と close-skip の理由 (sentinel が消滅すると trigger が失われる) を含む
 - **意図**: `agents/orchestrator/orchestrator.ts:1187-1224` の `DirectClose.handleTransition` を発火させない。sentinel issue を「再利用される長寿命 trigger」として保持する。`agents/scripts/project-init.ts:112` の "Do not close manually." がこの意図を body に明記
+
+### Q2: close-skip と cascade case の使い分け
+
+| ケース | 必要な declaration | 理由 |
+|--------|-------------------|------|
+| **Close-skip のみ** (現行 `project-planner`) | `labels.<L>.role: "marker"` + prompt verbatim 記述 | `closeBinding.primary.kind: "none"` 単独では `DirectClose` が発火しないため close-skip は完了。`projectBinding` を宣言すると loader が `evalPhase` + evaluator agent を要求し、それらが存在しない場合 validation 失敗 |
+| **Cascade-close** (sentinel close 時に子 issue も close) | 上記 + `projectBinding.sentinelLabel` + `projectBinding.cascadeClose: true` | cascade semantics は `projectBinding` block 経由で activate される |
+| **Parent-project inheritance** (子 issue が親 sentinel の project へ自動配属) | 上記 + `projectBinding.inheritProjectFromParent: true` | inheritance も `projectBinding` block 経由 |
+
+`project-planner` は cascade / inheritance を必要としないため close-skip case に該当し、marker label 宣言で十分。
 
 ### もし `direct` に書き換えた場合 (anti-pattern)
 
@@ -239,9 +255,11 @@ exception を主張する PR で reviewer が確認する形式:
 
 ```
 [skill:WF-CONSISTENCY-R7-EXCEPTION] sentinel-reuse exception claimed for agent "project-planner"
-- sentinel-only: workflow.projectBinding.sentinelLabel = "project-sentinel"
-                 .agent/project-planner/agent.json or steps_registry constrains dispatch to sentinel subjects
-- documented:    .agent/project-planner/prompts/system.md §<section> states "sentinel reuse — must not be closed"
+- marker-label:  workflow.json#labels.project-sentinel.role = "marker"
+                 .agent/project-planner/agent.json or steps_registry constrains dispatch to subjects bearing "project-sentinel"
+- documented:    .agent/project-planner/prompts/system.md §"Role" states "Sentinel reuse — must not be closed" verbatim,
+                 naming the label and the rationale for skipping close
+- projectBinding: not declared (close-skip alone does not require it; cascade / inheritance not in use)
 - code refs:     agents/scripts/project-init.ts:108-113 (sentinel生成 + "Do not close manually.")
                  agents/orchestrator/orchestrator.ts:1187-1224 (DirectClose semantics)
 Verdict: closeBinding.primary.kind = "none" は意図的な R7 exception。書き換え禁止。

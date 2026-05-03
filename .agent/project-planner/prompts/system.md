@@ -14,6 +14,15 @@ to achieve the goal.
 **Secondary**: When all goal items are already covered by existing issues,
 emit an empty `deferred_items` list and verdict `done`.
 
+**Sentinel reuse — must not be closed.** This agent operates on the project
+sentinel issue, identified by the `project-sentinel` marker label declared
+in `.agent/workflow.json` (`labels.project-sentinel.role: "marker"`). The
+sentinel is a long-lived trigger for the planner cycle, created once by
+`agents/scripts/project-init.ts`; closing it would destroy the trigger.
+Therefore `closeBinding.primary.kind` is intentionally `none` for this
+agent — the orchestrator advances the phase to `done` without closing the
+underlying issue.
+
 ## Output discipline
 
 - Intermediate output: minimum prose. Just enough to show the step ran.

@@ -94,28 +94,32 @@ source: `agents/docs/builder/06_workflow_setup.md` §"Close binding (per agent)"
 
 通常 rule の唯一の例外。terminal を出力しても `closeBinding(a) = none` を許容する条件を formal に定める。
 
-**適用条件 (両方を満たすこと)**:
+**R7-Exception (Sentinel-reuse pattern)** — A `transformer` agent emitting to a terminal phase MAY set `closeBinding.primary.kind: "none"` if BOTH:
 
-1. `workflow.projectBinding.sentinelLabel` が定義され、agent `a` が dispatch される subject (issue) は **常に** `sentinelLabel` を保持する (= sentinel subject 専用 agent)
-2. agent `a` の prompt または README に **「sentinel reuse — must not be closed」** 趣旨の文言が記載され、reviewer が意図的省略であることを確認できる
+1. The agent operates exclusively on a sentinel subject identified by a marker label, and that label is declared in `workflow.json#labels` with `role: "marker"`. (Full `projectBinding` declaration is REQUIRED only when the workflow also activates cascade-close or parent-project inheritance — see Q2 in `references/examples.md`. Close-skip alone needs only the marker-label declaration.)
+2. The agent's prompt or README explicitly documents the sentinel reuse contract — verbatim wording such as "Sentinel reuse — must not be closed" — naming the label and the rationale for skipping close.
+
+If either condition fails, fall back to R7 strict (`closeBinding.primary.kind` must be `direct` or `boundary` for terminal-phase transformers).
 
 formal に書くと:
 
 ```
-sentinelOnly(a) := ∀ s ∈ subjects(a). sentinelLabel ∈ labels(s)
-documented(a)   := agent a の prompt / README が sentinel reuse を明記
+markerDeclared(a) := ∃ ℓ ∈ workflow.labels. role(ℓ) = "marker" ∧ ∀ s ∈ subjects(a). ℓ ∈ labels(s)
+documented(a)     := agent a の prompt / README が sentinel reuse を verbatim wording で明記
 
-sentinelOnly(a) ∧ documented(a) ⇒ closeBinding(a) = none を許容
+markerDeclared(a) ∧ documented(a) ⇒ closeBinding(a) = none を許容
 ```
+
+`projectBinding.sentinelLabel` は cascade-close / parent-project inheritance が必要な場合に限り required。close-skip だけが目的なら marker-label 宣言で十分。
 
 **Justification の要件**: reviewer は exception 主張側に対し、agent prompt または `.agent/<a>/README.md` の該当箇所 (sentinel reuse 旨の記述) の path + line citation を要求する。citation が無い `kind: none` は通常 R7 違反として扱う。
 
 **False negative リスク警告**: exception を誤って主張すると、本来 close すべき issue が滞留する。具体的には sentinel でない subject 経由で agent が dispatch された場合、`{ primary: "none" }` のため `done` ラベル付きで永久に open。リスク mitigation:
 
-- exception 主張時は subject の label 制約 (sentinelLabel 必須) を steps_registry / agent.json の precondition に明文化することを推奨
+- exception 主張時は subject の label 制約 (marker label 必須) を steps_registry / agent.json の precondition に明文化することを推奨
 - 通常の `direct` close と sentinel `none` を **同一 agent で混在** させない (single-purpose 原則 R1 と整合)。混在が必要なら別 agent に分割する
 
-**現行 example**: `.agent/workflow.json` の `project-planner` (`outputPhase: "done"`, `closeBinding.primary.kind: "none"`) は本 exception の正例。`agents/scripts/project-init.ts:108-113` で生成される sentinel issue (body に "Do not close manually." 明記) を反復 trigger として使う設計のため、`agents/orchestrator/orchestrator.ts:1187-1224` の `DirectClose.handleTransition` を発火させない。
+**現行 example**: `.agent/workflow.json` の `project-planner` (`outputPhase: "done"`, `closeBinding.primary.kind: "none"`) は本 exception の正例。`labels.project-sentinel.role: "marker"` で marker label として宣言され、`.agent/project-planner/prompts/system.md` に "Sentinel reuse — must not be closed" を明記。`agents/scripts/project-init.ts:108-113` で生成される sentinel issue (body に "Do not close manually." 明記) を反復 trigger として使う設計のため、`agents/orchestrator/orchestrator.ts:1187-1224` の `DirectClose.handleTransition` を発火させない。`projectBinding` ブロックは未宣言だが、close-skip のみが目的のため exception 条件を満たす。
 
 source (exception): `agents/scripts/project-init.ts:108-113` (sentinel 生成 + "Do not close manually."), `agents/orchestrator/orchestrator.ts:1187-1224` (DirectClose semantics), commit `1a51c30` (`closeOnComplete: false` → ADT migration での `kind: "none"` 継承).
 
