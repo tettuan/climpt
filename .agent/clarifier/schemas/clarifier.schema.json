@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "clarifier.schema.json",
-  "description": "Clarifier agent step schemas. Two-step linear flow: scan-iterator-failure (work) → clarify (closure). Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration.",
+  "description": "Clarifier agent step schemas. Three-step linear flow: scan-iterator-failure (work) → scan-prior-verdicts (work) → clarify (closure). Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration. Gate 3 progress predicate (anchor_signature) blocks identical-anchor re-approval after iterator failure — see closure.clarify schema.",
 
   "closure.clarify.scan-iterator-failure": {
     "type": "object",
@@ -55,10 +55,76 @@
     }
   },
 
+  "closure.clarify.scan-prior-verdicts": {
+    "type": "object",
+    "description": "Work-step output schema for closure.clarify.scan-prior-verdicts. Read-only scan over prior comments anchored with `<!-- clarifier-verdict-v1 -->` to build the chronological signature ledger consumed by Gate 3 progress predicate. Also captures `<!-- iterator-failure-v1 -->` timestamps for cross-anchoring. Empty/absent comments → empty arrays. Per StepKind boundary rules, work→closure transitions use the 'handoff' intent.",
+    "required": [
+      "next_action",
+      "prior_anchor_signatures",
+      "iterator_failure_timestamps"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["handoff", "repeat"]
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "prior_anchor_signatures": {
+        "type": "array",
+        "description": "Chronological (ascending by created_at) ledger of prior clarifier verdicts on this issue. Each entry is parsed from a comment whose first line is `<!-- clarifier-verdict-v1 -->`. Comments without the v1 anchor are skipped (no backward-compat). Empty when no prior v1-anchored verdict exists.",
+        "items": {
+          "type": "object",
+          "required": ["created_at", "verdict"],
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp from gh issue view JSON."
+            },
+            "anchor_signature": {
+              "type": ["string", "null"],
+              "description": "sha256 hex (64 lowercase a-f0-9) parsed from the `<!-- anchor-signature: ... -->` line. Null when malformed/absent."
+            },
+            "verdict": {
+              "type": "string",
+              "enum": ["ready-to-impl", "ready-to-consider"],
+              "description": "Verdict parsed from the `## Clarifier verdict: <verdict>` line."
+            }
+          }
+        }
+      },
+      "iterator_failure_timestamps": {
+        "type": "array",
+        "description": "Chronological (ascending) list of created_at timestamps for every comment whose first line is `<!-- iterator-failure-v1 -->`. Used by Gate 3 progress predicate to detect 'iterator failed AFTER my last ready-to-impl'.",
+        "items": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+
   "closure.clarify": {
     "type": "object",
-    "description": "Clarify closure response — inspect a need-clearance issue, apply the 5-gate rubric, emit verdict and rationale. The orchestrator transitions the phase; this agent never touches labels or issue state.",
-    "required": ["stepId", "status", "summary", "next_action", "verdict", "rationale"],
+    "description": "Clarify closure response — inspect a need-clearance issue, apply the 5-gate rubric, emit verdict and rationale. The orchestrator transitions the phase; this agent never touches labels or issue state. The `anchor_signature` is required so reviewers / downstream scans can mechanically detect anchor reuse across cycles (Gate 3 progress predicate).",
+    "required": [
+      "stepId",
+      "status",
+      "summary",
+      "next_action",
+      "verdict",
+      "rationale",
+      "final_summary",
+      "anchor_signature"
+    ],
     "properties": {
       "stepId": {
         "type": "string",
@@ -106,7 +172,13 @@
               "properties": {
                 "gate": {
                   "type": "string",
-                  "enum": ["alignment", "state-machine", "scope", "acceptance", "dependency"]
+                  "enum": [
+                    "alignment",
+                    "state-machine",
+                    "scope",
+                    "acceptance",
+                    "dependency"
+                  ]
                 },
                 "pass": { "type": "boolean" },
                 "note": { "type": "string", "minLength": 1 }
@@ -118,6 +190,11 @@
       "final_summary": {
         "type": "string",
         "description": "One-paragraph recap of the verdict reasoning. Used as commentTemplates variable on handoff."
+      },
+      "anchor_signature": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$",
+        "description": "sha256 hex digest (64 lowercase a-f0-9) of the canonicalized, sorted, newline-joined list of `Anchor:` strings the clarifier emits in the comment body. Computed deterministically: 1) collect every Anchor string the comment will print (`path:line` or `symbol`), 2) trim each, 3) sort ascending lexicographically (deduplicate), 4) join with single LF, 5) sha256 → lower-case hex. When no anchor is emitted (Gate 3 fails (a) on missing anchor), use sha256 of the empty string (`e3b0c44...b855`). The agent MUST also embed this value in the posted comment as `<!-- anchor-signature: <sha256> -->` so the next-cycle scan can recover it. Required: enables Gate 3 progress predicate to detect anchor reuse across cycles."
       }
     }
   }
