@@ -18,6 +18,7 @@ import type { IterationSummary } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("chain");
 
@@ -60,24 +61,27 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Initial",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
-      "continuation.test": {
+      }),
+      "continuation.test": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "test",
+          edition: "default",
+        },
         stepId: "continuation.test",
         name: "Continuation",
-        c2: "continuation",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
     validationSteps: {
       "closure.issue": {
@@ -85,7 +89,8 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         name: "Issue Closure",
         c2: "closure",
         c3: "issue",
-        validationConditions: [{
+        preflightConditions: [],
+        postLLMConditions: [{
           validator: "command",
           params: { command: "echo ok" },
         }],
@@ -96,7 +101,8 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         name: "External State Closure",
         c2: "closure",
         c3: "polling",
-        validationConditions: [],
+        preflightConditions: [],
+        postLLMConditions: [],
         onFailure: { action: "retry" },
       },
     },
@@ -180,7 +186,8 @@ Deno.test("ValidationChain - validate runs format validation when outputSchema d
     name: "Schema Closure",
     c2: "closure",
     c3: "schema",
-    validationConditions: [],
+    preflightConditions: [],
+    postLLMConditions: [],
     onFailure: { action: "retry" },
     outputSchema: { type: "object" },
   };
@@ -224,7 +231,7 @@ Deno.test("ValidationChain - validate returns valid for step with empty conditio
   const chain = createChain();
   const summary = createSummary();
 
-  // closure.polling has empty completionConditions
+  // closure.polling has empty postLLMConditions
   const result = await chain.validate("closure.polling", summary);
 
   assertEquals(result.valid, true);
@@ -311,7 +318,7 @@ Deno.test("ValidationChain - validate returns invalid when stepValidator rejects
   const chain = createChainWithValidator(validator);
   const summary = createSummary();
 
-  // closure.issue has non-empty validationConditions
+  // closure.issue has non-empty postLLMConditions
   const result = await chain.validate("closure.issue", summary);
 
   assertEquals(result.valid, false);
@@ -336,7 +343,7 @@ Deno.test("ValidationChain - validate returns invalid when stepValidator rejects
 });
 
 Deno.test("ValidationChain - validate still returns valid when step has empty conditions despite failing validator", async () => {
-  // closure.polling has empty validationConditions, so validateWithConditions
+  // closure.polling has empty postLLMConditions, so the post-LLM path
   // is never reached even if a stepValidator is provided.
   const failResult: ValidatorResult = {
     valid: false,
@@ -467,22 +474,27 @@ Deno.test("ValidationChain - onFailure retry returns retryPrompt (existing behav
   );
 });
 
-Deno.test("ValidationChain - onFailure abort returns action abort", async () => {
+Deno.test("ValidationChain - unrecoverable failure throws AgentValidationAbortError", async () => {
+  // Per design 16 §C, an unrecoverable post-LLM failure escapes the cycle
+  // as `ExecutionError` (`AgentValidationAbortError`); it is not a
+  // configurable action enum value.
   const failResult: ValidatorResult = {
     valid: false,
     pattern: "critical-error",
     error: "unrecoverable state",
+    recoverable: false,
   };
   const validator = createMockStepValidator(failResult);
   const registry = createFixtureRegistry();
-  registry.validationSteps!["closure.issue"].onFailure = { action: "abort" };
+  registry.validationSteps!["closure.issue"].onFailure = { action: "retry" };
   const chain = createChainWithValidator(validator, null, registry);
   const summary = createSummary();
 
-  const result = await chain.validate("closure.issue", summary);
-
-  assertEquals(result.valid, false, "should report validation failure");
-  assertEquals(result.action, "abort", "action should be abort");
+  await assertRejects(
+    () => chain.validate("closure.issue", summary),
+    AgentValidationAbortError,
+    "closure.issue",
+  );
 });
 
 Deno.test("ValidationChain - onFailure skip returns action skip", async () => {
@@ -503,7 +515,9 @@ Deno.test("ValidationChain - onFailure skip returns action skip", async () => {
   assertEquals(result.action, "skip", "action should be skip");
 });
 
-Deno.test("ValidationChain - maxAttempts exceeded overrides retry to abort", async () => {
+Deno.test("ValidationChain - maxAttempts exceeded throws AgentValidationAbortError", async () => {
+  // maxAttempts exhaustion is run-time `ExecutionError` (design 16 §C),
+  // surfaced as a thrown `AgentValidationAbortError` instead of an action.
   const failResult: ValidatorResult = {
     valid: false,
     pattern: "persistent-failure",
@@ -522,12 +536,11 @@ Deno.test("ValidationChain - maxAttempts exceeded overrides retry to abort", asy
   const result1 = await chain.validate("closure.issue", summary);
   assertEquals(result1.action, "retry", "first attempt should retry");
 
-  // Second attempt: maxAttempts (2) reached, should abort
-  const result2 = await chain.validate("closure.issue", summary);
-  assertEquals(
-    result2.action,
-    "abort",
-    "should abort after maxAttempts exceeded",
+  // Second attempt: maxAttempts (2) reached, should throw
+  await assertRejects(
+    () => chain.validate("closure.issue", summary),
+    AgentValidationAbortError,
+    "maxAttempts (2) exceeded",
   );
 });
 
@@ -550,12 +563,11 @@ Deno.test("ValidationChain - default maxAttempts is 3 when not configured", asyn
   const r2 = await chain.validate("closure.issue", summary);
   assertEquals(r2.action, "retry", "attempt 2 should retry");
 
-  // Attempt 3: default maxAttempts (3) reached, should abort
-  const r3 = await chain.validate("closure.issue", summary);
-  assertEquals(
-    r3.action,
-    "abort",
-    "attempt 3 should abort (default maxAttempts=3)",
+  // Attempt 3: default maxAttempts (3) reached, should throw
+  await assertRejects(
+    () => chain.validate("closure.issue", summary),
+    AgentValidationAbortError,
+    "maxAttempts (3) exceeded",
   );
 });
 
@@ -563,7 +575,9 @@ Deno.test("ValidationChain - default maxAttempts is 3 when not configured", asyn
 // P4-5: Recoverable/unrecoverable classification
 // =============================================================================
 
-Deno.test("ValidationChain - unrecoverable failure overrides retry to abort", async () => {
+Deno.test("ValidationChain - unrecoverable failure overrides retry, throws", async () => {
+  // `recoverable: false` short-circuits the configured retry action and
+  // throws `AgentValidationAbortError` (design 16 §C ExecutionError path).
   const failResult: ValidatorResult = {
     valid: false,
     pattern: "command-not-found",
@@ -577,13 +591,10 @@ Deno.test("ValidationChain - unrecoverable failure overrides retry to abort", as
   const chain = createChainWithValidator(validator, null, registry);
   const summary = createSummary();
 
-  const result = await chain.validate("closure.issue", summary);
-
-  assertEquals(result.valid, false, "should report validation failure");
-  assertEquals(
-    result.action,
-    "abort",
-    "unrecoverable failure should override action to abort",
+  await assertRejects(
+    () => chain.validate("closure.issue", summary),
+    AgentValidationAbortError,
+    "closure.issue",
   );
 });
 

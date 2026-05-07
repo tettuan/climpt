@@ -1,14 +1,15 @@
 /**
  * StepKind Tool Policy Contract Test
  *
- * Validates that the tool policy correctly restricts boundary tools
- * based on step kind, without any LLM calls.
+ * Validates that the tool policy blocks GitHub write operations at the
+ * bash layer across all step kinds, without any LLM calls.
  *
  * Contract:
- * - work steps: boundary tools DENIED, boundary bash BLOCKED
- * - verification steps: boundary tools DENIED, boundary bash BLOCKED
- * - closure steps: boundary tools ALLOWED (in allowed list),
- *   but boundary bash still BLOCKED (must use Boundary Hook)
+ * - All step kinds (work/verification/closure): GitHub write bash commands
+ *   (gh issue edit/close, gh pr edit/merge, gh release create, gh api, etc.)
+ *   are BLOCKED. The Boundary Hook is the single write path.
+ * - Read subcommands (gh issue view/list, gh pr view/diff) are ALLOWED.
+ * - Workflow-continuation creates (gh issue create, gh pr create) are ALLOWED.
  *
  * Also verifies that steps_registry.json stepKind assignments
  * are consistent across all agents.
@@ -16,10 +17,8 @@
 
 import { join } from "@std/path";
 import {
-  BOUNDARY_TOOLS,
   filterAllowedTools,
   isBashCommandAllowed,
-  isToolAllowed,
   STEP_KIND_TOOL_POLICY,
 } from "../../../agents/common/tool-policy.ts";
 import type { StepKind } from "../../../agents/common/step-registry/types.ts";
@@ -38,88 +37,30 @@ let failed = 0;
 
 log("Part 1: Tool Policy API Contracts\n");
 
-// Test 1: Work steps deny boundary tools
-log("Test 1: Work steps deny boundary tools");
-{
-  let allDenied = true;
-  for (const tool of BOUNDARY_TOOLS) {
-    const result = isToolAllowed(tool, "work");
-    if (result.allowed) {
-      logErr(`  FAIL: boundary tool "${tool}" allowed in work step`);
-      allDenied = false;
-      failed++;
-    }
-  }
-  if (allDenied) {
-    log(
-      `  PASS: all ${BOUNDARY_TOOLS.length} boundary tools denied in work steps`,
-    );
-    passed++;
-  }
-}
+const stepKinds: StepKind[] = ["work", "verification", "closure"];
 
-// Test 2: Verification steps deny boundary tools
-log("Test 2: Verification steps deny boundary tools");
+// Test 1: GitHub write bash commands blocked in every step kind
+log("Test 1: GitHub write bash commands blocked in every step kind");
 {
-  let allDenied = true;
-  for (const tool of BOUNDARY_TOOLS) {
-    const result = isToolAllowed(tool, "verification");
-    if (result.allowed) {
-      logErr(
-        `  FAIL: boundary tool "${tool}" allowed in verification step`,
-      );
-      allDenied = false;
-      failed++;
-    }
-  }
-  if (allDenied) {
-    log(
-      `  PASS: all ${BOUNDARY_TOOLS.length} boundary tools denied in verification steps`,
-    );
-    passed++;
-  }
-}
-
-// Test 3: Closure steps allow boundary tools (in allowed list)
-log("Test 3: Closure steps allow boundary tools");
-{
-  let allAllowed = true;
-  for (const tool of BOUNDARY_TOOLS) {
-    const result = isToolAllowed(tool, "closure");
-    if (!result.allowed) {
-      logErr(
-        `  FAIL: boundary tool "${tool}" denied in closure step: ${result.reason}`,
-      );
-      allAllowed = false;
-      failed++;
-    }
-  }
-  if (allAllowed) {
-    log(
-      `  PASS: all ${BOUNDARY_TOOLS.length} boundary tools allowed in closure steps`,
-    );
-    passed++;
-  }
-}
-
-// Test 4: Boundary bash blocked in all step kinds
-log("Test 4: Boundary bash commands blocked in all step kinds");
-{
-  const testCommands = [
+  const writeCommands = [
     "gh issue close 123",
+    "gh issue delete 123",
+    'gh issue edit 123 --add-label "done"',
+    "gh issue edit 123 --state closed",
+    "gh pr close 456",
     "gh pr merge 456",
+    'gh pr edit 456 --add-label "reviewed"',
     "gh release create v1.0",
+    "gh label create done",
+    "gh project item-edit 1",
+    "gh api /repos/o/r/issues",
   ];
-  const stepKinds: StepKind[] = ["work", "verification", "closure"];
   let allBlocked = true;
-
   for (const kind of stepKinds) {
-    for (const cmd of testCommands) {
+    for (const cmd of writeCommands) {
       const result = isBashCommandAllowed(cmd, kind);
       if (result.allowed) {
-        logErr(
-          `  FAIL: bash command "${cmd}" allowed in ${kind} step`,
-        );
+        logErr(`  FAIL: "${cmd}" allowed in ${kind} step`);
         allBlocked = false;
         failed++;
       }
@@ -127,43 +68,81 @@ log("Test 4: Boundary bash commands blocked in all step kinds");
   }
   if (allBlocked) {
     log(
-      `  PASS: boundary bash commands blocked in all step kinds (${testCommands.length} cmds x ${stepKinds.length} kinds)`,
+      `  PASS: ${writeCommands.length} write commands blocked in all ${stepKinds.length} step kinds`,
     );
     passed++;
   }
 }
 
-// Test 5: filterAllowedTools removes boundary tools for work steps
-log("Test 5: filterAllowedTools removes boundary tools for work steps");
+// Test 2: Read and continuation-create commands stay allowed
+log("Test 2: Read + continuation bash commands allowed in every step kind");
 {
-  const configuredTools = ["Read", "Write", "Bash", "githubIssueClose"];
-  const filtered = filterAllowedTools(configuredTools, "work");
-  if (filtered.includes("githubIssueClose")) {
-    logErr(
-      "  FAIL: filterAllowedTools did not remove githubIssueClose from work step",
-    );
-    failed++;
-  } else if (!filtered.includes("Read")) {
-    logErr(
-      "  FAIL: filterAllowedTools removed non-boundary tool Read from work step",
-    );
-    failed++;
-  } else {
+  const readCommands = [
+    "gh issue view 123",
+    "gh issue list",
+    "gh pr view 456",
+    "gh pr diff 456",
+    "gh pr checks 456",
+    "gh project view 1",
+    "gh project item-list 1",
+    // continuation creates (non-destructive, handled by finalize layer)
+    "gh issue create --title X",
+    "gh pr create --title X",
+    // comments remain allowed (OutboxProcessor / Handoff Manager)
+    'gh issue comment 123 --body "x"',
+  ];
+  let allAllowed = true;
+  for (const kind of stepKinds) {
+    for (const cmd of readCommands) {
+      const result = isBashCommandAllowed(cmd, kind);
+      if (!result.allowed) {
+        logErr(
+          `  FAIL: "${cmd}" blocked in ${kind} step: ${result.reason}`,
+        );
+        allAllowed = false;
+        failed++;
+      }
+    }
+  }
+  if (allAllowed) {
     log(
-      `  PASS: filterAllowedTools correctly filters [${
-        configuredTools.join(",")
-      }] -> [${filtered.join(",")}]`,
+      `  PASS: ${readCommands.length} read/continuation commands allowed in all ${stepKinds.length} step kinds`,
     );
     passed++;
   }
 }
 
-// Test 6: STEP_KIND_TOOL_POLICY structure completeness
-log("Test 6: STEP_KIND_TOOL_POLICY covers all step kinds");
+// Test 3: filterAllowedTools is a no-op (no MCP-level boundary tools exist)
+log("Test 3: filterAllowedTools preserves configured tools");
 {
-  const kinds: StepKind[] = ["work", "verification", "closure"];
+  const configuredTools = ["Read", "Write", "Bash", "Edit"];
+  let allPreserved = true;
+  for (const kind of stepKinds) {
+    const filtered = filterAllowedTools(configuredTools, kind);
+    if (
+      filtered.length !== configuredTools.length ||
+      !configuredTools.every((t) => filtered.includes(t))
+    ) {
+      logErr(
+        `  FAIL: filterAllowedTools dropped tools in ${kind}: [${
+          filtered.join(",")
+        }]`,
+      );
+      allPreserved = false;
+      failed++;
+    }
+  }
+  if (allPreserved) {
+    log(`  PASS: all base tools preserved in every step kind`);
+    passed++;
+  }
+}
+
+// Test 4: STEP_KIND_TOOL_POLICY structure completeness
+log("Test 4: STEP_KIND_TOOL_POLICY covers all step kinds");
+{
   let complete = true;
-  for (const kind of kinds) {
+  for (const kind of stepKinds) {
     const policy = STEP_KIND_TOOL_POLICY[kind];
     if (!policy) {
       logErr(`  FAIL: no policy defined for step kind "${kind}"`);
@@ -173,10 +152,16 @@ log("Test 6: STEP_KIND_TOOL_POLICY covers all step kinds");
       logErr(`  FAIL: empty allowed list for step kind "${kind}"`);
       complete = false;
       failed++;
+    } else if (!policy.blockBoundaryBash) {
+      logErr(
+        `  FAIL: step kind "${kind}" does not enforce blockBoundaryBash`,
+      );
+      complete = false;
+      failed++;
     }
   }
   if (complete) {
-    log(`  PASS: all ${kinds.length} step kinds have non-empty policies`);
+    log(`  PASS: all ${stepKinds.length} step kinds have non-empty policies`);
     passed++;
   }
 }
@@ -185,7 +170,26 @@ log("Test 6: STEP_KIND_TOOL_POLICY covers all step kinds");
 
 log("\nPart 2: steps_registry.json stepKind Consistency\n");
 
-const agents = ["iterator", "reviewer", "facilitator"];
+// Discover agents under `.agent/*/steps_registry.json` rather than hardcoding
+// names. This example is a user-emulating E2E check (see examples/CLAUDE.md)
+// and must cover whatever agents the user has installed.
+const agents: string[] = [];
+for await (const entry of Deno.readDir(join(repoRoot, ".agent"))) {
+  if (!entry.isDirectory) continue;
+  try {
+    await Deno.stat(
+      join(repoRoot, ".agent", entry.name, "steps_registry.json"),
+    );
+    agents.push(entry.name);
+  } catch {
+    // Not an agent directory — skip.
+  }
+}
+agents.sort();
+if (agents.length === 0) {
+  logErr("FAIL: no agents found under .agent/*/steps_registry.json");
+  Deno.exit(1);
+}
 
 for (const agent of agents) {
   log(`Agent: ${agent}`);
@@ -217,11 +221,14 @@ for (const agent of agents) {
       continue;
     }
 
-    // Check: closure steps must have "closing" in allowedIntents
-    if (stepKind === "closure") {
+    // Check: if a closure step declares a structuredGate, 'closing' must
+    // appear in allowedIntents. Single-Step archetype (archetypes.md §A)
+    // may legally omit structuredGate since its verdict is count:iteration
+    // and completion is not intent-routed — so skip when no gate exists.
+    if (stepKind === "closure" && gate) {
       if (!allowedIntents.includes("closing")) {
         logErr(
-          `  FAIL: ${stepId} is stepKind=closure but allowedIntents does not include 'closing': [${
+          `  FAIL: ${stepId} is stepKind=closure with structuredGate but allowedIntents does not include 'closing': [${
             allowedIntents.join(",")
           }]`,
         );

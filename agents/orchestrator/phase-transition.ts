@@ -99,6 +99,53 @@ export function computeLabelChanges(
 }
 
 /**
+ * Returns the first prefix-applied GitHub label whose `labelMapping`
+ * entry routes to `targetPhase`, or `null` if no entry maps there.
+ *
+ * Mirrors the add-side scan in {@link computeLabelChanges}: insertion
+ * order of `labelMapping` is the tiebreaker, prefix is taken from
+ * `config.labelPrefix`. Use this whenever code needs to refer to the
+ * label that represents a workflow phase — never hardcode the bare
+ * label name, since a workflow may carry a `labelPrefix` that turns
+ * `done` into `docs:done`.
+ */
+export function resolvePhaseLabel(
+  config: WorkflowConfig,
+  targetPhase: string,
+): string | null {
+  const prefix = config.labelPrefix;
+  for (const [label, phase] of Object.entries(config.labelMapping)) {
+    if (phase === targetPhase) {
+      return prefix ? `${prefix}:${label}` : label;
+    }
+  }
+  return null;
+}
+
+/**
+ * Returns true when any of `labels` carries a workflow label that
+ * routes to `targetPhase` via `labelMapping`.
+ *
+ * Strips `config.labelPrefix` before consulting `labelMapping`, so a
+ * workflow with `labelPrefix: "docs"` correctly recognises both
+ * `docs:done` and a bare `done` for the same phase semantics. Labels
+ * outside the prefix namespace are ignored.
+ */
+export function hasPhaseLabel(
+  labels: readonly string[],
+  config: WorkflowConfig,
+  targetPhase: string,
+): boolean {
+  const prefix = config.labelPrefix;
+  for (const label of labels) {
+    const bare = stripPrefix(label, prefix);
+    if (bare === null) continue;
+    if (config.labelMapping[bare] === targetPhase) return true;
+  }
+  return false;
+}
+
+/**
  * Replaces `{variable}` placeholders in a template string.
  *
  * Variables not present in the record are left as-is.

@@ -45,10 +45,6 @@ function definitionWithRegistry(): AgentDefinition {
         type: "count:iteration",
         config: { maxIterations: 3 },
       },
-      boundaries: {
-        allowedTools: ["Read"],
-        permissionMode: "default",
-      },
     },
   };
 }

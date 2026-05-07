@@ -1,0 +1,24 @@
+{
+  "data": {
+    "repository": {
+      "issue": {
+        "projectItems": {
+          "nodes": [
+            {
+              "project": {
+                "number": 1,
+                "owner": { "login": "tettuan" }
+              }
+            },
+            {
+              "project": {
+                "number": 3,
+                "owner": { "login": "tettuan" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

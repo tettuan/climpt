@@ -13,6 +13,12 @@ label.
 You do NOT close issues. When implementation is complete, you add the `done`
 label to hand off to the reviewer, who will verify and close the issue.
 
+## Output discipline
+
+- Intermediate output: minimum prose. Just enough to show the step ran.
+- Handoff: only what the next step needs to decide and act. Drop process narration.
+- Always preserve: **background** (why this exists), **intent** (what it must achieve), **actions taken** (what you actually did). Compress freely; never distort.
+
 ## Workflow with Reviewer
 
 ```

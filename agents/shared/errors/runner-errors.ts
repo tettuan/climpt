@@ -10,7 +10,7 @@
  * - Retryable query failures
  */
 
-import { ClimptError } from "./base.ts";
+import { ClimptError, type ExecutionErrorMarker } from "./base.ts";
 
 /**
  * Runner accessed before initialization
@@ -89,9 +89,11 @@ export class AgentTimeoutError extends ClimptError {
 /**
  * Maximum iterations reached without finishing
  */
-export class AgentMaxIterationsError extends ClimptError {
+export class AgentMaxIterationsError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "AGENT_MAX_ITERATIONS";
   readonly recoverable = false;
+  readonly executionFailure = true;
 
   /**
    * The maximum iterations limit
@@ -163,9 +165,11 @@ export class AgentRetryableQueryError extends ClimptError {
 /**
  * Validation aborted (unrecoverable failure or maxAttempts exceeded)
  */
-export class AgentValidationAbortError extends ClimptError {
+export class AgentValidationAbortError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "AGENT_VALIDATION_ABORT";
   readonly recoverable = false;
+  readonly executionFailure = true;
 
   /**
    * Step ID where validation was aborted

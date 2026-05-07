@@ -75,9 +75,8 @@ Deno.test("frontmatter-registry-validator - matching frontmatter and registry pr
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue", "repo"],
     });
 
@@ -141,9 +140,8 @@ Deno.test("frontmatter-registry-validator - extra var in frontmatter produces er
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -201,9 +199,8 @@ Deno.test("frontmatter-registry-validator - missing var in frontmatter produces 
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue", "repo"],
     });
 
@@ -259,9 +256,8 @@ Deno.test("frontmatter-registry-validator - missing prompt file is skipped witho
   try {
     // Do NOT create any prompt file
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -322,9 +318,8 @@ Deno.test("frontmatter-registry-validator - no frontmatter in file is skipped wi
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -387,9 +382,8 @@ Deno.test("frontmatter-registry-validator - runtime-supplied vars are excluded f
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -443,9 +437,8 @@ Deno.test("frontmatter-registry-validator - runtime-supplied vars in registry ar
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue", "max_iterations"],
     });
 
@@ -530,9 +523,10 @@ Deno.test("frontmatter-registry-validator - step with missing c2 is skipped", as
   const dir = await Deno.makeTempDir();
   try {
     const registry = registryWith("initial.issue", {
+      kind: "work",
+      address: { c1: "steps", edition: "default" },
       // c2 missing
       c3: "issue",
-      edition: "default",
       uvVariables: ["issue"],
     });
 
@@ -579,9 +573,8 @@ Deno.test("frontmatter-registry-validator - frontmatter without uvVariables key 
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -649,9 +642,8 @@ Deno.test("frontmatter-registry-validator - mixed extra and missing vars produce
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: registryVars,
     });
 

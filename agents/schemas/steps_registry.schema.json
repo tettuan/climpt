@@ -38,9 +38,21 @@
     "entryStepMapping": {
       "type": "object",
       "additionalProperties": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "initial": {
+            "type": "string",
+            "description": "Step id used at the start of a verdict cycle (iteration 1)."
+          },
+          "continuation": {
+            "type": "string",
+            "description": "Step id used by the verdict handler's continuation prompt fallback. Set equal to 'initial' when the agent has no separate continuation step."
+          }
+        },
+        "required": ["initial", "continuation"],
+        "additionalProperties": false
       },
-      "description": "Mode-based entry step mapping (e.g., { 'issue': 'initial.issue' })"
+      "description": "Verdict-type to entry step pair. Each value declares 'initial' and 'continuation' explicitly; the runtime never derives one from the other."
     },
     "failurePatterns": {
       "type": "object",
@@ -74,7 +86,7 @@
   "definitions": {
     "StepDefinition": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": ["stepId", "name", "kind", "address"],
       "properties": {
         "stepId": {
           "type": "string",
@@ -90,27 +102,14 @@
           "default": "prompt",
           "description": "Step type for categorization"
         },
-        "stepKind": {
+        "kind": {
           "type": "string",
           "enum": ["work", "verification", "closure"],
           "description": "Step kind for flow taxonomy. Determines allowed intents: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
         },
-        "c2": {
-          "type": "string",
-          "description": "C3L Category (e.g., 'initial', 'continuation')"
-        },
-        "c3": {
-          "type": "string",
-          "description": "C3L Classification (e.g., 'issue', 'project')"
-        },
-        "edition": {
-          "type": "string",
-          "default": "default",
-          "description": "Edition variant (f_{edition}.md)"
-        },
-        "adaptation": {
-          "type": "string",
-          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        "address": {
+          "$ref": "#/definitions/C3LAddress",
+          "description": "C3L 5-tuple address (design 14 §C). Single aggregate for prompt resolution."
         },
         "uvVariables": {
           "type": "array",
@@ -145,9 +144,41 @@
         }
       }
     },
+    "C3LAddress": {
+      "type": "object",
+      "required": ["c1", "c2", "c3", "edition"],
+      "properties": {
+        "c1": {
+          "type": "string",
+          "description": "Registry-level constant namespace (e.g., 'steps')"
+        },
+        "c2": {
+          "type": "string",
+          "description": "C3L Category (e.g., 'initial', 'continuation')"
+        },
+        "c3": {
+          "type": "string",
+          "description": "C3L Classification (e.g., 'issue', 'project')"
+        },
+        "edition": {
+          "type": "string",
+          "description": "Edition variant (f_{edition}.md)"
+        },
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        }
+      }
+    },
     "ValidationStep": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": [
+        "stepId",
+        "name",
+        "address",
+        "preflightConditions",
+        "postLLMConditions"
+      ],
       "properties": {
         "stepId": {
           "type": "string",
@@ -157,24 +188,27 @@
           "type": "string",
           "description": "Human-readable name"
         },
-        "c2": {
-          "type": "string",
-          "description": "C3L Category"
+        "address": {
+          "$ref": "#/definitions/C3LAddress",
+          "description": "C3L 5-tuple address (design 14 §C)."
         },
-        "c3": {
-          "type": "string",
-          "description": "C3L Classification"
-        },
-        "validationConditions": {
+        "preflightConditions": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/ValidationCondition"
           },
-          "description": "Conditions that must pass for validation"
+          "description": "Conditions evaluated BEFORE the LLM call. Each validator referenced here MUST declare phase: 'preflight'. Failure aborts the closure step; no retry prompt is produced."
+        },
+        "postLLMConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ValidationCondition"
+          },
+          "description": "Conditions evaluated AFTER the LLM call. Each validator referenced here MUST declare phase: 'postllm'. May produce a retry prompt instructing the LLM to take corrective action."
         },
         "onFailure": {
           "$ref": "#/definitions/FailureAction",
-          "description": "Action when completion fails"
+          "description": "Action on postLLMConditions failure (does not apply to preflightConditions, which always abort)"
         },
         "outputSchemaRef": {
           "$ref": "#/definitions/OutputSchemaRef",
@@ -213,7 +247,6 @@
               "repeat",
               "jump",
               "closing",
-              "abort",
               "escalate",
               "handoff"
             ]
@@ -326,6 +359,11 @@
           "enum": ["command"],
           "description": "Validator type"
         },
+        "phase": {
+          "type": "string",
+          "enum": ["preflight", "postllm"],
+          "description": "Execution phase. 'preflight' — pure predicate evaluated BEFORE the LLM call; cannot produce retry prompt; failure aborts. 'postllm' — evaluated AFTER the LLM call; may request LLM-driven remediation. Required when the validator is wired into any ValidationStep slot; phase mismatch with the slot is a load-time error."
+        },
         "command": {
           "type": "string",
           "description": "Command to execute"
@@ -361,8 +399,8 @@
       "properties": {
         "action": {
           "type": "string",
-          "enum": ["retry", "abort", "skip"],
-          "description": "Action to take on failure"
+          "enum": ["retry", "skip"],
+          "description": "Action to take on failure. Unrecoverable failure / maxAttempts exhaustion is thrown as ExecutionError (AgentValidationAbortError) per design 16 §C — not configurable here."
         },
         "maxAttempts": {
           "type": "integer",

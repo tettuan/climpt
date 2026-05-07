@@ -61,10 +61,6 @@ function createMinimalDefinition(): ResolvedAgentDefinition {
         type: "count:iteration",
         config: { maxIterations: 10 },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: {
         directory: "./logs",

@@ -103,6 +103,39 @@ function makeStub(options: StubOptions): {
     listLabels(): Promise<string[]> {
       throw new Error("unexpected: listLabels");
     },
+    addIssueToProject(): Promise<string> {
+      throw new Error("unexpected: addIssueToProject");
+    },
+    updateProjectItemField(): Promise<void> {
+      throw new Error("unexpected: updateProjectItemField");
+    },
+    closeProject(): Promise<void> {
+      throw new Error("unexpected: closeProject");
+    },
+    getProjectItemIdForIssue(): Promise<string | null> {
+      throw new Error("unexpected: getProjectItemIdForIssue");
+    },
+    listProjectItems(): Promise<{ id: string; issueNumber: number }[]> {
+      throw new Error("unexpected: listProjectItems");
+    },
+    getIssueProjects(): Promise<Array<{ owner: string; number: number }>> {
+      throw new Error("unexpected: getIssueProjects");
+    },
+    createProjectFieldOption(): Promise<{ id: string; name: string }> {
+      throw new Error("unexpected: createProjectFieldOption");
+    },
+    listUserProjects(): Promise<never> {
+      throw new Error("unexpected: listUserProjects");
+    },
+    getProject(): Promise<never> {
+      throw new Error("unexpected: getProject");
+    },
+    getProjectFields(): Promise<never> {
+      throw new Error("unexpected: getProjectFields");
+    },
+    removeProjectItem(): Promise<never> {
+      throw new Error("unexpected: removeProjectItem");
+    },
   };
 
   return { github, creates, updates };

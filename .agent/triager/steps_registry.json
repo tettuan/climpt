@@ -1,27 +1,55 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "triager",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "triage"
+    "poll:state": {
+      "initial": "triage",
+      "continuation": "triage"
+    }
   },
   "steps": {
     "triage": {
       "stepId": "triage",
-      "name": "Triage Unlabeled Issues",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "triage",
-      "edition": "default",
+      "name": "Triage Single Issue",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "triage",
+        "edition": "default"
+      },
       "uvVariables": [
-        "limit",
+        "issue",
         "workflow"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: fetch unlabeled open issues, classify each (kind:impl / kind:consider), assign a unique order:N seq, apply both labels via gh CLI."
+      "outputSchemaRef": {
+        "file": "triager.schema.json",
+        "schema": "triage"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "triage"
+        }
+      },
+      "description": "Single-issue closure step: read issue body, classify exactly one kind label (kind:impl|kind:detail|kind:consider|kind:plan) per workflow.json#labelMapping, emit closing structured output. The poll:state boundary hook then applies the label via gh issue edit. closure_action='label-only' keeps the issue open. Does NOT assign order:N — that is prioritizer's responsibility (.agent/CLAUDE.md)."
     }
   }
 }

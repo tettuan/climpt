@@ -13,7 +13,7 @@
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import { AgentSchemaResolutionError } from "./errors.ts";
 import { srGateFlowValidationFailed } from "../shared/errors/config-errors.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import type {
   ExtendedStepsRegistry,
   OutputSchemaRef,
@@ -25,6 +25,13 @@ import {
 import { join } from "@std/path";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { PATHS } from "../shared/paths.ts";
+import {
+  acceptVoid,
+  type Decision,
+  reject as rejectDecision,
+  type ValidationError,
+  validationError,
+} from "../shared/validation/mod.ts";
 
 export interface SchemaManagerDeps {
   readonly definition: AgentDefinition;
@@ -71,7 +78,7 @@ export class SchemaManager {
         continue;
       }
 
-      const step = stepDef as PromptStepDefinition;
+      const step = stepDef as Step;
 
       if (!step.structuredGate) {
         missingGate.push(stepId);
@@ -122,6 +129,68 @@ export class SchemaManager {
   }
 
   /**
+   * Decision-shaped sibling of {@link validateFlowSteps}.
+   *
+   * Returns a single `Decision<void>` whose Reject errors enumerate
+   * each step missing structuredGate / transitions / outputSchemaRef.
+   * Each emitted `ValidationError` is tagged:
+   *  - `S3` for missing `structuredGate.allowedIntents`
+   *  - `S2` for missing `transitions`
+   *  - `A5` for missing `outputSchemaRef`
+   *
+   * The dual-loop closure-step requirement (**S5**: ≥1 closure step
+   * exists) is checked by `flow-validator.ts`'s
+   * `validateFlowReachability`; this method does not duplicate that
+   * check.
+   */
+  validateFlowStepsAsDecision(
+    stepsRegistry: ExtendedStepsRegistry,
+  ): Decision<void> {
+    const errors: ValidationError[] = [];
+
+    for (const [stepId, stepDef] of Object.entries(stepsRegistry.steps)) {
+      if (stepId.startsWith("section.")) continue;
+
+      const step = stepDef as Step;
+
+      if (!step.structuredGate) {
+        errors.push(
+          validationError(
+            "S3",
+            `Step "${stepId}" missing structuredGate`,
+            { source: "steps_registry.json", context: { stepId } },
+          ),
+        );
+      }
+
+      if (!step.transitions) {
+        errors.push(
+          validationError(
+            "S2",
+            `Step "${stepId}" missing transitions`,
+            { source: "steps_registry.json", context: { stepId } },
+          ),
+        );
+      }
+
+      if (!step.outputSchemaRef) {
+        errors.push(
+          validationError(
+            "A5",
+            `Step "${stepId}" missing outputSchemaRef`,
+            { source: "steps_registry.json", context: { stepId } },
+          ),
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      return rejectDecision(errors);
+    }
+    return acceptVoid();
+  }
+
+  /**
    * Load JSON Schema for a step from outputSchemaRef.
    *
    * Implements fail-fast behavior: tracks consecutive schema resolution failures
@@ -147,7 +216,7 @@ export class SchemaManager {
     }
 
     const stepDef = stepsRegistry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.outputSchemaRef) {
       logger.warn(

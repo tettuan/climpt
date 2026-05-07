@@ -1,0 +1,153 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "project-planner",
+  "version": "2.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": {
+      "initial": "closure.plan.goal-extract",
+      "continuation": "closure.plan.goal-extract"
+    }
+  },
+  "steps": {
+    "closure.plan.goal-extract": {
+      "stepId": "closure.plan.goal-extract",
+      "name": "Extract Project Goal From README",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "plan",
+        "edition": "goal-extract"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Extract project goal statement from injected {{project_goals}} README context. Single artifact = goal_statement + goal_axes + extraction_method. Read-only; no issue listing.",
+      "outputSchemaRef": {
+        "file": "planner.schema.json",
+        "schema": "closure.plan.goal-extract"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "goal_statement",
+          "goal_axes",
+          "extraction_method"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.plan.issue-survey"
+        },
+        "repeat": {
+          "target": "closure.plan.goal-extract"
+        }
+      }
+    },
+    "closure.plan.issue-survey": {
+      "stepId": "closure.plan.issue-survey",
+      "name": "Survey Open Issues In Project",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "plan",
+        "edition": "issue-survey"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Run gh issue list --state open against the project bound to the sentinel; record existing_issues (number,title,labels) and existing_issue_count. Read-only; no goal interpretation, no proposal emission.",
+      "outputSchemaRef": {
+        "file": "planner.schema.json",
+        "schema": "closure.plan.issue-survey"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "handoff",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "handoff",
+        "failFast": false,
+        "handoffFields": [
+          "goal_statement",
+          "goal_axes",
+          "extraction_method",
+          "existing_issues",
+          "existing_issue_count"
+        ]
+      },
+      "transitions": {
+        "handoff": {
+          "target": "closure.plan.plan"
+        },
+        "repeat": {
+          "target": "closure.plan.issue-survey"
+        }
+      }
+    },
+    "closure.plan.plan": {
+      "stepId": "closure.plan.plan",
+      "name": "Plan Project Issues",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "plan",
+        "edition": "default"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Compute gap between goal_axes and existing_issues, emit proposed_issues[] (deferred_items-compatible) with coverage_axes mapping each axis to issue indices, emit verdict closing.",
+      "outputSchemaRef": {
+        "file": "planner.schema.json",
+        "schema": "closure.plan.plan"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "failFast": false,
+        "handoffFields": [
+          "goal_statement",
+          "goal_axes",
+          "extraction_method",
+          "existing_issues",
+          "existing_issue_count",
+          "proposed_issues",
+          "coverage_axes",
+          "verdict",
+          "final_summary"
+        ]
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "closure.plan.plan"
+        }
+      }
+    }
+  }
+}

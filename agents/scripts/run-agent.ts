@@ -16,11 +16,20 @@
  * ```
  */
 
+import { join } from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
-import { AgentRunner } from "../runner/runner.ts";
 import { listAgents } from "../runner/loader.ts";
-import { loadConfiguration } from "../config/mod.ts";
+import { agentBundleToResolvedDefinition } from "../config/mod.ts";
 import { initAgent } from "../init.ts";
+import { BootKernel } from "../boot/mod.ts";
+import { isReject } from "../shared/validation/mod.ts";
+import { BootValidationFailed } from "../shared/validation/boundary.ts";
+import { Orchestrator } from "../orchestrator/orchestrator.ts";
+import { RunnerDispatcher } from "../orchestrator/dispatcher.ts";
+import { SubjectPicker } from "../orchestrator/subject-picker.ts";
+import { FileGitHubClient } from "../orchestrator/file-github-client.ts";
+import { SubjectStore } from "../orchestrator/subject-store.ts";
+import { DEFAULT_SUBJECT_STORE } from "../orchestrator/workflow-types.ts";
 import {
   type FinalizeOptions,
   finalizeWorktreeBranch,
@@ -63,6 +72,11 @@ Common Options:
   --resume               Resume previous session
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
+  --local                Use file-based GitHub client (no GitHub API).
+                         Mirrors run-workflow.ts --local: subject metadata
+                         is read from the SubjectStore on disk and the
+                         close transport is sealed against it (no gh CLI
+                         shell-out). Requires --issue.
   --verbose, -v          Enable verbose logging (SDK I/O details)
 
 Finalize Options:
@@ -113,6 +127,7 @@ async function main(): Promise<void> {
       "help",
       "init",
       "list",
+      "local",
       "resume",
       "no-merge",
       "push",
@@ -396,11 +411,11 @@ async function main(): Promise<void> {
       } else {
         // deno-lint-ignore no-console
         console.log("  \u2717 Step Registry \u2014 Step definition errors:");
-        for (const err of result.stepRegistryValidation.errors) {
+        for (const entry of result.stepRegistryValidation.entries) {
           // deno-lint-ignore no-console
-          console.log(`    - ${err}`);
+          console.log(`    - ${entry.message}`);
         }
-        totalErrors += result.stepRegistryValidation.errors.length;
+        totalErrors += result.stepRegistryValidation.entries.length;
       }
       if (result.stepRegistryValidation.warnings.length > 0) {
         for (const warn of result.stepRegistryValidation.warnings) {
@@ -529,10 +544,59 @@ async function main(): Promise<void> {
   const agentName = args.agent;
 
   try {
-    // Load agent definition
+    // T2.4: Standalone agent mode goes through the full BootKernel
+    // pipeline (per Critique F12 — no lite boot). `bootStandalone`
+    // synthesises an in-memory single-agent WorkflowConfig and re-enters
+    // the same validate-and-freeze path used by run-workflow.ts; the
+    // agent doesn't need a `.agent/workflow.json` entry to run in
+    // isolation.
+    //
+    // T9 (--local plumbing): when `--local` is supplied the same
+    // FileGitHubClient + SubjectStore pair used by run-workflow.ts:280
+    // is constructed and injected so (a) `bootStandalone` seals the
+    // close transport against the local store (no gh shell-out from
+    // the close path) and (b) `Orchestrator.runOne` receives the
+    // store as the 3rd arg so the labels-read fork at
+    // orchestrator.ts:378-385 takes the `meta.labels` branch instead
+    // of the `getIssueLabels` (gh CLI) branch — fulfilling design 11
+    // §B R2b "gh API は呼ばない".
+    //
+    // The standalone WorkflowConfig synthesised by bootStandalone has
+    // no `subjectStore` field, so DEFAULT_SUBJECT_STORE.path is the
+    // single canonical location for the local fixture — matching the
+    // `--local` semantics in run-workflow.ts:281-283 when
+    // `workflow.subjectStore` is omitted.
+    const cwd = Deno.cwd();
+    const localGithubClient = args.local
+      ? new FileGitHubClient(
+        new SubjectStore(join(cwd, DEFAULT_SUBJECT_STORE.path)),
+      )
+      : undefined;
+    const subjectStore = args.local
+      ? new SubjectStore(join(cwd, DEFAULT_SUBJECT_STORE.path))
+      : undefined;
+
     // deno-lint-ignore no-console
     console.log(`\nLoading agent: ${agentName}`);
-    const definition = await loadConfiguration(agentName, Deno.cwd());
+    const decision = await BootKernel.bootStandalone({
+      cwd,
+      agentName,
+      githubClient: localGithubClient,
+    });
+    if (isReject(decision)) {
+      throw new BootValidationFailed(decision.errors);
+    }
+    const artifacts = decision.value;
+    const bundle = artifacts.agentRegistry.lookup(agentName);
+    if (!bundle) {
+      // bootStandalone built the registry from this bundle, so a missing
+      // lookup would mean the bundle id mismatched the requested name —
+      // surface a precise error rather than a generic "not found".
+      throw new Error(
+        `Internal: BootArtifacts is missing the standalone agent "${agentName}" — agent.json "name" must equal the directory id`,
+      );
+    }
+    const definition = agentBundleToResolvedDefinition(bundle);
     // deno-lint-ignore no-console
     console.log(`  ${definition.displayName}: ${definition.description}`);
 
@@ -577,7 +641,7 @@ async function main(): Promise<void> {
 
     // Setup worktree if enabled in config
     // When worktree is enabled, branch name is auto-generated if not specified
-    let workingDir = Deno.cwd();
+    let workingDir = cwd;
     let worktreeResult: WorktreeSetupResult | undefined;
 
     const worktreeConfig = definition.runner.execution?.worktree;
@@ -610,72 +674,109 @@ async function main(): Promise<void> {
       }
     }
 
-    // Create and run the agent
-    const runner = new AgentRunner(definition);
+    // T5.3 (R2b cutover): standalone agent mode now flows through the
+    // same `SubjectPicker → Orchestrator → RunnerDispatcher → Channels`
+    // spine workflow mode uses, instead of constructing
+    // `new AgentRunner(definition)` directly. Per design 11 §C the
+    // SubjectPicker is traversed in BOTH modes — only the input source
+    // differs (gh listing vs argv lift). Boot already sealed the bus +
+    // channels in `bootStandalone`; the orchestrator below publishes
+    // `dispatchPlanned({ source: "argv" })` and the close path is
+    // structurally identical to workflow mode (R5 hard gate).
+    //
+    // `--issue` is mandatory after the cutover: SubjectQueueItem has a
+    // required `subjectId`. Surfacing this as a configuration error here
+    // keeps the message symmetric with the existing required-parameter
+    // handling above.
+    const issueArg = args.issue !== undefined ? Number(args.issue) : undefined;
+    if (issueArg === undefined || !Number.isFinite(issueArg)) {
+      // deno-lint-ignore no-console
+      console.error(
+        "Error: [CONFIGURATION] --issue <number> is required " +
+          "for standalone agent runs (T5.3 R2b cutover)\n" +
+          "  → Resolution: Add --issue <number> to your command\n" +
+          "  → See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
+      Deno.exit(1);
+    }
+
+    // Build the same `RunnerDispatcher` + `Orchestrator` workflow mode
+    // builds (run-workflow.ts §runSingleIssue / §runBatchWorkflow). All
+    // close-path artifacts come from the frozen `bootStandalone`
+    // BootArtifacts — no second source of truth. Note: the dispatcher's
+    // `cwd` is the worktree path so the AgentRunner spawned inside
+    // dispatch sees the worktree as its working directory.
+    const dispatcher = new RunnerDispatcher(
+      artifacts.workflow,
+      artifacts.agentRegistry,
+      workingDir,
+      artifacts.bus,
+      artifacts.runId,
+      artifacts.boundaryClose,
+    );
+    const orchestrator = new Orchestrator(
+      artifacts.workflow,
+      artifacts.githubClient,
+      dispatcher,
+      workingDir,
+      undefined,
+      artifacts.agentRegistry,
+      artifacts.bus,
+      artifacts.runId,
+      artifacts.directClose,
+      artifacts.outboxClosePre,
+      artifacts.outboxClosePost,
+      artifacts.mergeCloseAdapter,
+    );
+
+    // Argv-lift path (design 11 §B): the picker is traversed but its
+    // input source is argv, not the IssueQueryTransport. Queue length
+    // is exactly 1 by construction.
+    const picker = SubjectPicker.fromArgv({ subjectId: issueArg });
+    const queue = await picker.pick();
+    const item = queue[0];
+
     // deno-lint-ignore no-console
     console.log(`\nStarting ${definition.displayName}...\n`);
 
-    const result = await runner.run({
-      cwd: workingDir,
-      args: runnerArgs,
-      plugins: [],
+    // The CLI-derived `runnerArgs` map is forwarded as
+    // `OrchestratorOptions.initialPayload` so the dispatcher merges it
+    // into `AgentRunner.run({ args })` exactly as the legacy direct-
+    // construction path did. Workflow mode reads payload from
+    // `SubjectStore`; standalone mode has no store, so we hand the
+    // already-projected map in directly (T5.3 cutover).
+    //
+    // T9: when `--local` is set, `subjectStore` is passed as the 3rd
+    // arg so orchestrator.ts:378-385 reads labels from `meta.json`
+    // instead of `gh issue view --json labels`. Without `--local` the
+    // store stays `undefined` and the production gh path runs (the
+    // existing behaviour).
+    const orchestratorResult = await orchestrator.runOne(item, {
       verbose: args.verbose,
-    });
+      initialPayload: runnerArgs,
+    }, subjectStore);
+
+    const success = orchestratorResult.status === "completed" ||
+      orchestratorResult.status === "dry-run";
 
     // Report result
     // deno-lint-ignore no-console
     console.log(`\n${"=".repeat(60)}`);
     // deno-lint-ignore no-console
-    console.log(`Agent completed: ${result.success ? "SUCCESS" : "FAILED"}`);
+    console.log(`Agent completed: ${success ? "SUCCESS" : "FAILED"}`);
     // deno-lint-ignore no-console
-    console.log(`Total iterations: ${result.iterations}`);
+    console.log(`Final phase: ${orchestratorResult.finalPhase}`);
     // deno-lint-ignore no-console
-    console.log(`Reason: ${result.reason}`);
-    if (result.totalCostUsd !== undefined) {
-      // deno-lint-ignore no-console
-      console.log(`Total cost: $${result.totalCostUsd.toFixed(4)} USD`);
-    }
-    if (result.numTurns !== undefined) {
-      // deno-lint-ignore no-console
-      console.log(`SDK turns: ${result.numTurns}`);
-    }
-    if (result.durationMs !== undefined) {
-      // deno-lint-ignore no-console
-      console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
-    }
-    if (result.error) {
-      // deno-lint-ignore no-console
-      console.error(`Error: ${result.error}`);
-    }
-
-    // Surface per-iteration errors for diagnosis
-    if (!result.success) {
-      const iterationErrors = result.summaries
-        .filter((s) => s.errors.length > 0)
-        .map((s) => `  iteration ${s.iteration}: ${s.errors.join("; ")}`);
-      if (iterationErrors.length > 0) {
-        // deno-lint-ignore no-console
-        console.error(`Iteration errors:`);
-        for (const line of iterationErrors) {
-          // deno-lint-ignore no-console
-          console.error(line);
-        }
-      }
-      // Warn if no LLM interaction occurred at all
-      const hasAnyLlmResponse = result.summaries.some((s) =>
-        s.assistantResponses.length > 0
-      );
-      if (!hasAnyLlmResponse) {
-        // deno-lint-ignore no-console
-        console.error(
-          "WARNING: No LLM responses received. " +
-            "Check SDK availability, API key, and network connectivity.",
-        );
-      }
-    }
+    console.log(`Status: ${orchestratorResult.status}`);
+    // deno-lint-ignore no-console
+    console.log(`Cycle count: ${orchestratorResult.cycleCount}`);
+    // T6.2: `issueClosed` is no longer a result field — close success
+    // is observable via the bus event log (`IssueClosedEvent`).
+    // run-agent's standalone mode does not subscribe; the cycle status
+    // alone is what we surface here.
 
     // Finalize worktree on success
-    if (result.success && worktreeResult) {
+    if (success && worktreeResult) {
       const parentCwd = Deno.cwd();
 
       // Build finalize options from CLI args and agent definition
@@ -763,7 +864,7 @@ async function main(): Promise<void> {
           console.log(`    - ${action}`);
         }
       }
-    } else if (!result.success && worktreeResult) {
+    } else if (!success && worktreeResult) {
       // Agent failed - preserve worktree for recovery
       // deno-lint-ignore no-console
       console.log(`\nWorktree preserved for recovery:`);
@@ -776,17 +877,20 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log(`${"=".repeat(60)}\n`);
 
-    // Output JSON result line for orchestrator dispatcher
+    // Output JSON result line for orchestrator dispatcher.
+    // The cycle status is the canonical outcome for the standalone
+    // path now that it flows through the orchestrator (T5.3); rate
+    // limit info is observable on the bus for downstream consumers.
     const dispatchResult: Record<string, unknown> = {
-      outcome: result.success ? "success" : "failed",
+      outcome: success ? "success" : "failed",
+      status: orchestratorResult.status,
+      finalPhase: orchestratorResult.finalPhase,
+      cycleCount: orchestratorResult.cycleCount,
     };
-    if (result.rateLimitInfo) {
-      dispatchResult.rateLimitInfo = result.rateLimitInfo;
-    }
     // deno-lint-ignore no-console
     console.log(JSON.stringify(dispatchResult));
 
-    Deno.exit(result.success ? 0 : 1);
+    Deno.exit(success ? 0 : 1);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     // deno-lint-ignore no-console

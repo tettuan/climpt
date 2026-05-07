@@ -1,27 +1,37 @@
 /**
  * Config Consistency Test
  *
- * Two-layer verification:
- * 1. Runner-required phases (STEP_PHASE) must be in every agent's directiveType pattern
- *    — source of truth: agents/shared/step-phases.ts
- * 2. Each agent's steps_registry.json c2/c3 values must match its user.yml patterns
- *    — catches config-specific drift
+ * For every climpt dev-time agent, each c2/c3 value appearing in
+ * steps_registry.json (both `steps` and `validationSteps`) must be accepted
+ * by the corresponding {name}-steps-user.yml `directiveType` / `layerType`
+ * pattern — otherwise breakdown rejects the runner's call.
+ *
+ * Pattern: Conformance Test (either side could be wrong — registry or user.yml).
+ * Message is IF/THEN to cover both directions.
+ *
+ * Agents are discovered dynamically via `discoverAgents()`. Tests MUST NOT
+ * hardcode agent names — `.agent/<name>/*` is user-side config, and
+ * hardcoding partial-enumerates the consumer set (see test-design skill).
+ *
+ * Note: a prior Layer 1 "every agent must accept all STEP_PHASE values"
+ * check was removed as over-constrained. The authoritative contract
+ * (confirmed by the leading comments in each <agent>-steps-user.yml) is
+ * "pattern must include all STEP_PHASE values **used in** steps_registry.json",
+ * which this test already enforces. Closure-only agents (triager, merger,
+ * clarifier, considerer, detailer) correctly ship patterns containing only
+ * `closure`.
  *
  * Prevents PR-C3L-004 regressions caused by pattern/registry mismatch.
  */
 
 import { assert } from "@std/assert";
-import { STEP_PHASE } from "../shared/step-phases.ts";
+import { discoverAgents } from "../testing/discover-agents.ts";
 
-const AGENTS = ["iterator", "reviewer", "facilitator"] as const;
 const CONFIG_DIR = ".agent/climpt/config";
 
-/** All phases defined in STEP_PHASE are runner concepts and must be accepted by breakdown. */
-const RUNNER_REQUIRED_PHASES: readonly string[] = Object.values(STEP_PHASE);
-
 interface RegistryJson {
-  steps: Record<string, { c2: string; c3: string }>;
-  validationSteps?: Record<string, { c2: string; c3: string }>;
+  steps: Record<string, { address: { c2: string; c3: string } }>;
+  validationSteps?: Record<string, { address: { c2: string; c3: string } }>;
 }
 
 /**
@@ -37,12 +47,12 @@ function collectAllC2C3(registry: RegistryJson): {
   const c3 = new Set<string>();
 
   for (const step of Object.values(registry.steps)) {
-    c2.add(step.c2);
-    c3.add(step.c3);
+    c2.add(step.address.c2);
+    c3.add(step.address.c3);
   }
   for (const vstep of Object.values(registry.validationSteps ?? {})) {
-    c2.add(vstep.c2);
-    c3.add(vstep.c3);
+    c2.add(vstep.address.c2);
+    c3.add(vstep.address.c3);
   }
 
   return { c2, c3 };
@@ -64,48 +74,29 @@ function extractPatternValues(pattern: string): string[] {
   return match[1].split("|");
 }
 
-// --- Layer 1: Runner-required phases ---
+const discovered = await discoverAgents({ requireUserYml: true });
 
-for (const agent of AGENTS) {
-  Deno.test(`Runner phases: ${agent} — directiveType includes STEP_PHASE values`, async () => {
-    const userYml = await Deno.readTextFile(
-      `${CONFIG_DIR}/${agent}-steps-user.yml`,
-    );
-    const dtPattern = extractPattern(userYml, "directiveType");
-    assert(
-      dtPattern,
-      `directiveType pattern not found in ${agent}-steps-user.yml`,
-    );
+Deno.test("config-consistency — at least one agent discovered (non-vacuity)", () => {
+  assert(
+    discovered.length > 0,
+    `No agents found under .agent/*/ with steps_registry.json + ${CONFIG_DIR}/<name>-steps-user.yml. ` +
+      `This test iterates discovered agents; an empty set would pass vacuously. ` +
+      `Fix: verify .agent/ contains at least one agent with both steps_registry.json and a matching steps-user.yml.`,
+  );
+});
 
-    const pattern = new RegExp(dtPattern);
-    const allowed = extractPatternValues(dtPattern);
+// --- Registry c2/c3 coverage (Conformance Test) ---
 
-    const missing = RUNNER_REQUIRED_PHASES.filter((v) => !pattern.test(v));
-    assert(
-      missing.length === 0,
-      `Fix: Add [${
-        missing.join(", ")
-      }] to directiveType.pattern in ${CONFIG_DIR}/${agent}-steps-user.yml. ` +
-        `These phases are runner-required (defined in agents/shared/step-phases.ts). ` +
-        `Current pattern allows: [${allowed.join(", ")}].`,
-    );
-  });
-}
-
-// --- Layer 2: Registry c2/c3 coverage ---
-
-for (const agent of AGENTS) {
+for (const { name: agent, registryPath, userYmlPath } of discovered) {
   Deno.test(`Registry coverage: ${agent} — directiveType covers all c2 values (steps + validationSteps)`, async () => {
     const registry: RegistryJson = JSON.parse(
-      await Deno.readTextFile(`.agent/${agent}/steps_registry.json`),
+      await Deno.readTextFile(registryPath),
     );
-    const userYml = await Deno.readTextFile(
-      `${CONFIG_DIR}/${agent}-steps-user.yml`,
-    );
+    const userYml = await Deno.readTextFile(userYmlPath!);
     const dtPattern = extractPattern(userYml, "directiveType");
     assert(
       dtPattern,
-      `directiveType pattern not found in ${agent}-steps-user.yml`,
+      `directiveType pattern not found in ${userYmlPath}`,
     );
 
     const pattern = new RegExp(dtPattern);
@@ -115,11 +106,12 @@ for (const agent of AGENTS) {
     const missing = [...allC2].filter((v) => !pattern.test(v));
     assert(
       missing.length === 0,
-      `Mismatch: .agent/${agent}/steps_registry.json (steps + validationSteps) uses c2 values [${
+      `Mismatch: ${registryPath} (steps + validationSteps) uses c2 values [${
         missing.join(", ")
-      }] not in ${CONFIG_DIR}/${agent}-steps-user.yml directiveType pattern [${
-        allowed.join(", ")
-      }]. ` +
+      }] ` +
+        `not in ${userYmlPath} directiveType pattern [${
+          allowed.join(", ")
+        }]. ` +
         `IF you added a new step/validationStep to steps_registry.json, THEN add the c2 value to user.yml directiveType.pattern. ` +
         `IF you intentionally narrowed user.yml, THEN remove the step from steps_registry.json.`,
     );
@@ -127,13 +119,11 @@ for (const agent of AGENTS) {
 
   Deno.test(`Registry coverage: ${agent} — layerType covers all c3 values (steps + validationSteps)`, async () => {
     const registry: RegistryJson = JSON.parse(
-      await Deno.readTextFile(`.agent/${agent}/steps_registry.json`),
+      await Deno.readTextFile(registryPath),
     );
-    const userYml = await Deno.readTextFile(
-      `${CONFIG_DIR}/${agent}-steps-user.yml`,
-    );
+    const userYml = await Deno.readTextFile(userYmlPath!);
     const ltPattern = extractPattern(userYml, "layerType");
-    assert(ltPattern, `layerType pattern not found in ${agent}-steps-user.yml`);
+    assert(ltPattern, `layerType pattern not found in ${userYmlPath}`);
 
     const pattern = new RegExp(ltPattern);
     const allowed = extractPatternValues(ltPattern);
@@ -142,11 +132,10 @@ for (const agent of AGENTS) {
     const missing = [...allC3].filter((v) => !pattern.test(v));
     assert(
       missing.length === 0,
-      `Mismatch: .agent/${agent}/steps_registry.json (steps + validationSteps) uses c3 values [${
+      `Mismatch: ${registryPath} (steps + validationSteps) uses c3 values [${
         missing.join(", ")
-      }] not in ${CONFIG_DIR}/${agent}-steps-user.yml layerType pattern [${
-        allowed.join(", ")
-      }]. ` +
+      }] ` +
+        `not in ${userYmlPath} layerType pattern [${allowed.join(", ")}]. ` +
         `IF you added a new step/validationStep to steps_registry.json, THEN add the c3 value to user.yml layerType.pattern. ` +
         `IF you intentionally narrowed user.yml, THEN remove the step from steps_registry.json.`,
     );

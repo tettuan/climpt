@@ -317,8 +317,9 @@ include the required tool, or `permissionMode` is too restrictive.
      }
    }
    ```
-2. Note that `filterAllowedTools()` automatically removes boundary tools (e.g.,
-   `githubIssueClose`) during work/verification steps. This is intentional.
+2. Note that `isBashCommandAllowed()` blocks GitHub write subcommands (e.g.,
+   `gh issue edit`, `gh pr merge`, `gh release create`) in every step kind. This
+   is intentional — the Boundary Hook is the single write path.
 
 **Prevention**: Declare all needed tools explicitly in `allowedTools` and use
 `acceptEdits` for normal operation.

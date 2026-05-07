@@ -17,6 +17,45 @@ import {
 } from "./external-state-adapter.ts";
 import { IssueVerdictHandler } from "./issue.ts";
 import { MockStateChecker } from "./external-state-checker.ts";
+import { BoundaryCloseChannel } from "../channels/boundary-close.ts";
+import { createCloseEventBus } from "../events/bus.ts";
+import type { CloseTransport } from "../transports/close-transport.ts";
+
+/**
+ * Build a BoundaryClose channel + transport that records every close
+ * request into `closed` and (optionally) throws on each call. The test
+ * harness asserts on `closed` for the close path while
+ * `capturedCommands` (above) covers the label-update path that still
+ * shells out via Deno.Command (W2 only deletes the close-side gh
+ * invocation; label updates remain procedural until a follow-up PR).
+ */
+function buildBoundaryCloseHarness(opts: {
+  fail?: boolean;
+} = {}): {
+  boundaryClose: BoundaryCloseChannel;
+  closed: number[];
+} {
+  const closed: number[] = [];
+  const transport: CloseTransport = {
+    kind: "mock" as const,
+    close(subjectId) {
+      if (opts.fail) {
+        return Promise.reject(new Error("test-stub: close failed"));
+      }
+      closed.push(Number(subjectId));
+      return Promise.resolve();
+    },
+  };
+  const bus = createCloseEventBus();
+  const boundaryClose = new BoundaryCloseChannel({
+    closeTransport: transport,
+    bus,
+    runId: "test-run-adapter",
+  });
+  boundaryClose.register(bus);
+  bus.freeze();
+  return { boundaryClose, closed };
+}
 
 // =============================================================================
 // Deno.Command stub infrastructure
@@ -106,7 +145,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             verdict: "approved",
             closure_action: "label-only",
@@ -133,7 +172,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: { closure_action: "label-only" },
       });
 
@@ -156,7 +195,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: 123,
           closure_action: "label-only",
@@ -182,7 +221,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "",
           closure_action: "label-only",
@@ -208,7 +247,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "approved",
           closure_action: "label-only",
@@ -217,7 +256,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "rejected",
           closure_action: "label-only",
@@ -259,7 +298,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -329,7 +368,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             // no issue.labels in structured output
@@ -372,7 +411,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -424,7 +463,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -483,29 +522,23 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
           },
         };
         const adapter = new ExternalStateVerdictAdapter(handler, config);
+        // PR4-3 (T4.4c): close-write goes through BoundaryClose channel.
+        const { boundaryClose, closed } = buildBoundaryCloseHarness();
+        adapter.setBoundaryClose(boundaryClose);
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "close",
           },
         });
 
-        assertEquals(capturedCommands.length, 1, "exactly 1 command");
-        const cmd = capturedCommands[0];
-        assertEquals(cmd.program, "gh");
-        assertEquals(
-          cmd.args.slice(0, 3),
-          ["issue", "close", "42"],
-          "must be gh issue close 42",
-        );
-        // Must NOT contain "edit" (no label update)
-        assertEquals(
-          cmd.args.includes("edit"),
-          false,
-          "must not contain edit subcommand",
-        );
+        // Close-write went through BoundaryClose, NOT Deno.Command. The
+        // label-update site stays procedural (W2 deletes only the
+        // close-side gh invocation).
+        assertEquals(capturedCommands.length, 0, "no gh shell-out for close");
+        assertEquals(closed, [42], "BoundaryClose received the close request");
       } finally {
         restoreDenoCommand();
       }
@@ -531,34 +564,32 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
           },
         };
         const adapter = new ExternalStateVerdictAdapter(handler, config);
+        const { boundaryClose, closed } = buildBoundaryCloseHarness();
+        adapter.setBoundaryClose(boundaryClose);
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-and-close",
           },
         });
 
-        assertEquals(capturedCommands.length, 2, "exactly 2 commands");
-
-        // First command: gh issue edit (labels)
+        // Only the label-update branch shells out gh; the close-write
+        // is owned by BoundaryClose now.
+        assertEquals(
+          capturedCommands.length,
+          1,
+          "exactly one gh edit (labels) command",
+        );
         const editCmd = capturedCommands[0];
         assertEquals(editCmd.program, "gh");
         assertEquals(
           editCmd.args.slice(0, 3),
           ["issue", "edit", "42"],
-          "first must be gh issue edit 42",
+          "must be gh issue edit 42",
         );
-
-        // Second command: gh issue close
-        const closeCmd = capturedCommands[1];
-        assertEquals(closeCmd.program, "gh");
-        assertEquals(
-          closeCmd.args.slice(0, 3),
-          ["issue", "close", "42"],
-          "second must be gh issue close 42",
-        );
+        assertEquals(closed, [42], "BoundaryClose received the close request");
       } finally {
         restoreDenoCommand();
       }
@@ -579,23 +610,19 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
           },
         };
         const adapter = new ExternalStateVerdictAdapter(handler, config);
+        const { boundaryClose, closed } = buildBoundaryCloseHarness();
+        adapter.setBoundaryClose(boundaryClose);
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             // no closure_action
           },
         });
 
-        assertEquals(capturedCommands.length, 1, "exactly 1 command");
-        const cmd = capturedCommands[0];
-        assertEquals(cmd.program, "gh");
-        assertEquals(
-          cmd.args.slice(0, 3),
-          ["issue", "close", "42"],
-          "default must be gh issue close 42",
-        );
+        assertEquals(capturedCommands.length, 0, "no gh shell-out for close");
+        assertEquals(closed, [42], "BoundaryClose received the close request");
       } finally {
         restoreDenoCommand();
       }
@@ -624,7 +651,7 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
           },

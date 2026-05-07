@@ -7,7 +7,7 @@
 
 import type {
   GateIntent,
-  PromptStepDefinition,
+  Step,
   StructuredGate,
 } from "../common/step-registry.ts";
 
@@ -36,13 +36,12 @@ export { GateInterpretationError };
 /**
  * Mapping from common AI response action values to GateIntent.
  */
-const ACTION_TO_INTENT: Record<string, GateIntent> = {
+export const ACTION_TO_INTENT: Record<string, GateIntent> = {
   // Standard mappings
   next: "next",
   repeat: "repeat",
   jump: "jump",
   closing: "closing",
-  abort: "abort",
   escalate: "escalate",
   handoff: "handoff",
   // Common aliases from AI responses
@@ -63,7 +62,6 @@ const VALID_INTENTS: Set<GateIntent> = new Set([
   "repeat",
   "jump",
   "closing",
-  "abort",
   "escalate",
   "handoff",
 ]);
@@ -121,7 +119,7 @@ export class StepGateInterpreter {
    */
   interpret(
     structuredOutput: Record<string, unknown>,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
   ): GateInterpretation {
     const gate = stepDef.structuredGate;
 
@@ -171,7 +169,7 @@ export class StepGateInterpreter {
   private extractIntent(
     output: Record<string, unknown>,
     gate: StructuredGate,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
   ): { intent: GateIntent; usedFallback: boolean; reason?: string } {
     const intentField = gate.intentField;
 

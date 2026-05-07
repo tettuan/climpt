@@ -5,8 +5,10 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "poll:state": "initial.polling",
-    "count:iteration": "initial.iteration"
+    "poll:state": {
+      "initial": "initial.issue",
+      "continuation": "continuation.issue"
+    }
   },
   "failurePatterns": {
     "git-dirty": {
@@ -81,11 +83,53 @@
         "baseBranch",
         "mergeStatus"
       ]
+    },
+    "commit-binding-missing": {
+      "description": "No commit references (#<issue>)",
+      "edition": "failed",
+      "adaptation": "commit-binding-missing",
+      "params": [
+        "issue"
+      ]
+    },
+    "off-run-only": {
+      "description": "All commits referencing this issue pre-date the run",
+      "edition": "failed",
+      "adaptation": "off-run-only",
+      "params": [
+        "issue",
+        "run_started_sha"
+      ]
+    },
+    "ac-evidence-missing": {
+      "description": "One or more ACs have empty evidence_paths",
+      "edition": "failed",
+      "adaptation": "ac-evidence-missing",
+      "params": [
+        "missing_ac_ids"
+      ]
+    },
+    "ac-typed-prefix-violated": {
+      "description": "Typed ACs reference paths that fail prefix or ls check",
+      "edition": "failed",
+      "adaptation": "ac-typed-prefix-violated",
+      "params": [
+        "violating_ac_ids"
+      ]
+    },
+    "kind-boundary-breach": {
+      "description": "Changed paths violate the iterator scope rule for the issue's current kind:* label",
+      "edition": "failed",
+      "adaptation": "kind-boundary-breach",
+      "params": [
+        "kind_boundary_violations"
+      ]
     }
   },
   "validators": {
     "git-clean": {
       "type": "command",
+      "phase": "postllm",
       "command": "git status --porcelain",
       "successWhen": "empty",
       "failurePattern": "git-dirty",
@@ -96,6 +140,7 @@
     },
     "tests-pass": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno task test",
       "successWhen": "exitCode:0",
       "failurePattern": "test-failed",
@@ -106,6 +151,7 @@
     },
     "type-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno check src/**/*.ts agents/**/*.ts *.ts",
       "successWhen": "exitCode:0",
       "failurePattern": "type-error",
@@ -116,6 +162,7 @@
     },
     "lint-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno task lint",
       "successWhen": "exitCode:0",
       "failurePattern": "lint-error",
@@ -126,6 +173,7 @@
     },
     "format-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno fmt --check",
       "successWhen": "exitCode:0",
       "failurePattern": "format-error",
@@ -136,6 +184,7 @@
     },
     "branch-pushed": {
       "type": "command",
+      "phase": "postllm",
       "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "successWhen": "exitCode:0",
       "failurePattern": "branch-not-pushed",
@@ -146,6 +195,7 @@
     },
     "branch-merged": {
       "type": "command",
+      "phase": "postllm",
       "command": "git log origin/develop..HEAD --oneline",
       "successWhen": "empty",
       "failurePattern": "branch-not-merged",
@@ -154,20 +204,57 @@
         "baseBranch": "stdout",
         "mergeStatus": "parseMergeStatus"
       }
+    },
+    "commit-binding-nonempty": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "git log --grep='(#${issue})' --oneline | head -1",
+      "successWhen": "non-empty",
+      "failurePattern": "commit-binding-missing"
+    },
+    "commit-in-run": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "git rev-list ${run_started_sha}..HEAD --grep='(#${issue})' | head -1",
+      "successWhen": "non-empty",
+      "failurePattern": "off-run-only"
+    },
+    "ac-evidence-nonempty": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test \"${ac_evidence_all_nonempty}\" = \"true\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "ac-evidence-missing"
+    },
+    "ac-typed-prefix-ok": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test \"${ac_typed_all_ok}\" = \"true\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "ac-typed-prefix-violated"
+    },
+    "kind-boundary-clean": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test -z \"${kind_boundary_violations}\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "kind-boundary-breach"
     }
   },
   "validationSteps": {
-    "closure.issue": {
-      "stepId": "closure.issue",
-      "name": "Issue Validation",
-      "c2": "retry",
-      "c3": "issue",
-      "validationConditions": [
+    "closure.issue.precheck-commit-exists": {
+      "stepId": "closure.issue.precheck-commit-exists",
+      "name": "Commit Binding Existence Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-commit-exists"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
-          "validator": "git-clean"
-        },
-        {
-          "validator": "type-check"
+          "validator": "commit-binding-nonempty"
         }
       ],
       "onFailure": {
@@ -176,21 +263,23 @@
       },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
-      "description": "Validate issue with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+      "description": "RC2 S2a: verify each commit_list SHA exists and capture changed_paths. Missing binding → commit-binding-missing retry."
     },
-    "closure.polling": {
-      "stepId": "closure.polling",
-      "name": "External State Validation",
-      "c2": "retry",
-      "c3": "issue",
-      "validationConditions": [
+    "closure.issue.precheck-commit-in-run": {
+      "stepId": "closure.issue.precheck-commit-in-run",
+      "name": "Commit In-Run Ancestry Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-commit-in-run"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
-          "validator": "git-clean"
-        },
-        {
-          "validator": "type-check"
+          "validator": "commit-in-run"
         }
       ],
       "onFailure": {
@@ -198,10 +287,85 @@
         "maxAttempts": 3
       },
       "outputSchemaRef": {
-        "file": "polling.schema.json",
-        "schema": "closure.polling"
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
       },
-      "description": "Validate external state with git-clean and type-check."
+      "description": "RC3: per-SHA off-run flag via git merge-base --is-ancestor against run_started_sha. Off-run only → off-run-only retry."
+    },
+    "closure.issue.precheck-ac-evidence-nonempty": {
+      "stepId": "closure.issue.precheck-ac-evidence-nonempty",
+      "name": "AC Evidence Non-Empty Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-ac-evidence-nonempty"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "ac-evidence-nonempty"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "description": "RC5 S3a: assert every ac_id has at least one evidence_path. Empty → ac-evidence-missing retry."
+    },
+    "closure.issue.precheck-ac-typed-prefix": {
+      "stepId": "closure.issue.precheck-ac-typed-prefix",
+      "name": "AC Typed Path Prefix Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-ac-typed-prefix"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "ac-typed-prefix-ok"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "description": "RC5 S3b: typed ACs (fixture/prompt/template/schema) respect required prefix and `ls` succeeds. Violation → ac-typed-prefix-violated retry."
+    },
+    "closure.issue.precheck-kind-scope": {
+      "stepId": "closure.issue.precheck-kind-scope",
+      "name": "Kind Boundary Scope Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-kind-scope"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "kind-boundary-clean"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "description": "RC6: assert kind_boundary_violations is empty. Non-empty → kind-boundary-breach retry, which reverts only the listed out-of-scope paths."
     }
   },
   "steps": {
@@ -209,10 +373,13 @@
       "stepId": "initial.issue",
       "name": "Issue Initial Prompt",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -249,10 +416,13 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Continuation Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue",
         "completed_iterations"
@@ -265,38 +435,453 @@
       "structuredGate": {
         "allowedIntents": [
           "next",
-          "repeat",
-          "handoff"
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "repeat",
+        "handoffFields": [
+          "progress.completed_files",
+          "progress.pending_tasks",
+          "run_started_sha"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-commit-list"
+        },
+        "repeat": {
+          "target": "continuation.issue"
+        }
+      },
+      "description": "Continuation prompt for issue iterations. Pre: issue, completed_iterations. Verdict: next on implementation complete and pre-handoff git-clean checklist passed (advance to precheck chain); repeat to keep iterating in the work loop."
+    },
+    "closure.issue.precheck-commit-list": {
+      "stepId": "closure.issue.precheck-commit-list",
+      "name": "Precheck - Enumerate In-Run Commits",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-list"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": [
-          "progress.completed_files",
-          "progress.pending_tasks"
+          "run_started_sha",
+          "commit_list"
         ]
       },
       "transitions": {
         "next": {
-          "target": "continuation.issue"
+          "target": "closure.issue.precheck-commit-exists"
         },
         "repeat": {
-          "target": "continuation.issue"
-        },
-        "handoff": {
-          "target": "closure.issue"
+          "target": "closure.issue.precheck-commit-list"
         }
       },
-      "description": "Continuation prompt for issue iterations"
+      "description": "RC2 S1: enumerate in-run commits referencing (#<issue>). Pre: run_started_sha (recorded at run start, propagated from continuation.issue handoff). Verdict: next on enumeration OK; repeat if git log fails or run_started_sha unreadable."
+    },
+    "closure.issue.precheck-commit-exists": {
+      "stepId": "closure.issue.precheck-commit-exists",
+      "name": "Precheck - Verify Commit SHAs Exist",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-exists"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-commit-in-run"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-commit-exists"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-commit-exists"
+      ],
+      "description": "RC2 S2a: per-SHA existence + capture changed_paths. Pre: run_started_sha, commit_list. Verdict: next on every SHA exists (validator commit-binding-nonempty passes); repeat on commit-binding-missing (recovered via f_failed_commit-binding-missing.md adaptation)."
+    },
+    "closure.issue.precheck-commit-in-run": {
+      "stepId": "closure.issue.precheck-commit-in-run",
+      "name": "Precheck - Verify Commits Are In-Run",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-in-run"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-kind-read"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-commit-in-run"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-commit-in-run"
+      ],
+      "description": "RC3: per-SHA off-run flag via git merge-base --is-ancestor against run_started_sha. Pre: commit_verification (with exists). Verdict: next on at least one in-run commit (validator commit-in-run passes); repeat on off-run-only (recovered via f_failed_off-run-only.md adaptation)."
+    },
+    "closure.issue.precheck-kind-read": {
+      "stepId": "closure.issue.precheck-kind-read",
+      "name": "Precheck - Read Kind At Triage Artifact",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-kind-read"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck-kind-read"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-kind-scope"
+        }
+      },
+      "description": "Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt (audit-only). Missing/invalid → kind_at_triage:null. Always emits next; never repeats."
+    },
+    "closure.issue.precheck-kind-scope": {
+      "stepId": "closure.issue.precheck-kind-scope",
+      "name": "Precheck - Verify Kind Boundary Scope",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-kind-scope"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-extract"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-kind-scope"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-kind-scope"
+      ],
+      "description": "RC6: Apply iterator's kind:* scope rule to commit_verification.changed_paths using the issue's live kind:* label. Pre: commit_verification (with changed_paths). Verdict: next on kind_boundary_violations empty (validator kind-boundary-clean passes); repeat on kind-boundary-breach (out-of-scope paths must be reverted)."
+    },
+    "closure.issue.precheck-ac-extract": {
+      "stepId": "closure.issue.precheck-ac-extract",
+      "name": "Precheck - Extract Acceptance Criteria",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-extract"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations",
+          "ac_list"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-map"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-extract"
+        }
+      },
+      "description": "RC5 S1: extract AC bullets from issue body into ac_list. Pre: issue (number, title, body fetched via gh). Verdict: next on AC bullets parsed (or zero ACs found); repeat if issue body fetch fails."
+    },
+    "closure.issue.precheck-ac-map": {
+      "stepId": "closure.issue.precheck-ac-map",
+      "name": "Precheck - Map AC to Evidence",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-map"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-evidence-nonempty"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-map"
+        }
+      },
+      "description": "RC5 S2: map each AC to evidence paths drawn from commit_verification.changed_paths. Pre: ac_list, commit_verification.changed_paths. Verdict: next on ac_mapping populated for each ac_id; repeat if mapping cannot be produced (e.g. ac_list missing)."
+    },
+    "closure.issue.precheck-ac-evidence-nonempty": {
+      "stepId": "closure.issue.precheck-ac-evidence-nonempty",
+      "name": "Precheck - Verify AC Evidence Non-Empty",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-evidence-nonempty"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping",
+          "ac_evidence_all_nonempty",
+          "missing_ac_ids"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-typed-prefix"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-evidence-nonempty"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-ac-evidence-nonempty"
+      ],
+      "description": "RC5 S3a: every ac_id has ≥1 evidence_path. Pre: ac_list, ac_mapping. Verdict: next on ac_evidence_all_nonempty=true (validator ac-evidence-nonempty passes); repeat on ac-evidence-missing (recovered via f_failed_ac-evidence-missing.md adaptation)."
+    },
+    "closure.issue.precheck-ac-typed-prefix": {
+      "stepId": "closure.issue.precheck-ac-typed-prefix",
+      "name": "Precheck - Verify AC Typed Path Prefix",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-typed-prefix"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "repeat",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping",
+          "ac_evidence_all_nonempty",
+          "missing_ac_ids",
+          "ac_typed_all_ok",
+          "violating_ac_ids"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-typed-prefix"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-ac-typed-prefix"
+      ],
+      "description": "RC5 S3b: typed ACs (fixture/prompt/template/schema) respect required path prefix and `ls` succeeds. Pre: ac_mapping (with evidence_type). Verdict: next on ac_typed_all_ok=true (validator ac-typed-prefix-ok passes); repeat on ac-typed-prefix-violated (recovered via f_failed_ac-typed-prefix-violated.md adaptation). fallbackIntent=repeat: next advances to closure phase, ambiguous output stays in verification loop."
     },
     "closure.issue": {
       "stepId": "closure.issue",
       "name": "Issue Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -313,7 +898,9 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
-        "handoffFields": []
+        "handoffFields": [
+          "iterator_last_failure"
+        ]
       },
       "transitions": {
         "closing": {
@@ -323,709 +910,7 @@
           "target": "closure.issue"
         }
       },
-      "description": "Completion prompt for issue (terminal step)"
-    },
-    "section.projectcontext": {
-      "stepId": "section.projectcontext",
-      "name": "Project Context Section",
-      "c2": "section",
-      "c3": "project",
-      "edition": "context",
-      "uvVariables": [
-        "project_number",
-        "project_title",
-        "label_info",
-        "current_index",
-        "total_issues"
-      ],
-      "usesStdin": false,
-      "description": "Project context section inserted into issue prompts when part of a project. Not a Flow step - no structuredGate or transitions needed."
-    },
-    "initial.project.preparation": {
-      "stepId": "initial.project.preparation",
-      "name": "Project Preparation Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "preparation",
-      "uvVariables": [
-        "project_number",
-        "project_title",
-        "label_info",
-        "total_issues"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.preparation"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.preparation"
-        },
-        "repeat": {
-          "target": "initial.project.preparation"
-        },
-        "handoff": {
-          "target": "initial.project.review"
-        }
-      },
-      "description": "Preparation phase prompt for project mode"
-    },
-    "initial.project.preparationempty": {
-      "stepId": "initial.project.preparationempty",
-      "name": "Project Preparation (No Issues)",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "preparation",
-      "adaptation": "empty",
-      "uvVariables": [
-        "project_number",
-        "project_title",
-        "label_info",
-        "label_filter"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.preparationempty"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "handoff",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "initial.project.preparation"
-        },
-        "handoff": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Preparation phase prompt when no issues found"
-    },
-    "initial.project.processingempty": {
-      "stepId": "initial.project.processingempty",
-      "name": "Project Processing (No Current Issue)",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "processing",
-      "adaptation": "empty",
-      "uvVariables": [
-        "project_number",
-        "label_info",
-        "project_title",
-        "label_filter"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.processingempty"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "handoff",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "initial.project.review"
-        },
-        "handoff": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Processing phase prompt when no current issue"
-    },
-    "initial.project.review": {
-      "stepId": "initial.project.review",
-      "name": "Project Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "review",
-      "uvVariables": [
-        "project_number",
-        "project_title",
-        "label_info",
-        "issues_completed",
-        "label_filter"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.review"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.review"
-        },
-        "repeat": {
-          "target": "initial.project.again"
-        },
-        "handoff": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Review phase prompt for project mode"
-    },
-    "initial.project.again": {
-      "stepId": "initial.project.again",
-      "name": "Project Again Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "again",
-      "uvVariables": [
-        "project_number",
-        "project_title",
-        "label_info"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.again"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.again"
-        },
-        "repeat": {
-          "target": "initial.project.again"
-        },
-        "handoff": {
-          "target": "initial.project.review"
-        }
-      },
-      "description": "Re-execution phase prompt after failed review"
-    },
-    "initial.project.closure": {
-      "stepId": "initial.project.closure",
-      "name": "Project Complete Message",
-      "stepKind": "closure",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "closure",
-      "uvVariables": [
-        "project_number",
-        "label_info",
-        "issues_completed"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "initial.project.closure"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "closing",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "closing",
-        "handoffFields": []
-      },
-      "transitions": {
-        "closing": {
-          "target": null
-        },
-        "repeat": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Completion message for project mode"
-    },
-    "continuation.project.preparation": {
-      "stepId": "continuation.project.preparation",
-      "name": "Project Preparation Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "preparation",
-      "uvVariables": [
-        "completed_iterations"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "continuation.project.preparation"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.preparation"
-        },
-        "repeat": {
-          "target": "continuation.project.preparation"
-        },
-        "handoff": {
-          "target": "initial.project.review"
-        }
-      },
-      "description": "Continuation prompt for preparation phase"
-    },
-    "continuation.project.processingdone": {
-      "stepId": "continuation.project.processingdone",
-      "name": "Project Processing Done",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "processing",
-      "adaptation": "done",
-      "uvVariables": [
-        "project_number",
-        "completed_iterations",
-        "issues_completed"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "continuation.project.processingdone"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "handoff",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "initial.project.review"
-        },
-        "handoff": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Message when all issues are processed"
-    },
-    "continuation.project.review": {
-      "stepId": "continuation.project.review",
-      "name": "Project Review Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "review",
-      "uvVariables": [
-        "completed_iterations"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "continuation.project.review"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.review"
-        },
-        "repeat": {
-          "target": "initial.project.again"
-        },
-        "handoff": {
-          "target": "initial.project.closure"
-        }
-      },
-      "description": "Continuation prompt for review phase"
-    },
-    "continuation.project.again": {
-      "stepId": "continuation.project.again",
-      "name": "Project Again Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "again",
-      "uvVariables": [
-        "completed_iterations"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "continuation.project.again"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "summary"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.project.again"
-        },
-        "repeat": {
-          "target": "continuation.project.again"
-        },
-        "handoff": {
-          "target": "initial.project.review"
-        }
-      },
-      "description": "Continuation prompt for again phase"
-    },
-    "continuation.project.closure": {
-      "stepId": "continuation.project.closure",
-      "name": "Project Complete Continuation",
-      "stepKind": "closure",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "closure",
-      "uvVariables": [
-        "project_number"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "project.schema.json",
-        "schema": "continuation.project.closure"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "closing",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "closing",
-        "handoffFields": []
-      },
-      "transitions": {
-        "closing": {
-          "target": null
-        },
-        "repeat": {
-          "target": "continuation.project.closure"
-        }
-      },
-      "description": "Continuation message for closure phase"
-    },
-    "initial.iteration": {
-      "stepId": "initial.iteration",
-      "name": "Iterate Initial Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "iteration",
-      "edition": "default",
-      "uvVariables": [
-        "iterations"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "iteration.schema.json",
-        "schema": "initial.iteration"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "work.work_done",
-          "iteration.completed_iterations"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.iteration"
-        },
-        "repeat": {
-          "target": "initial.iteration"
-        }
-      },
-      "description": "Initial prompt for iteration-based execution"
-    },
-    "continuation.iteration": {
-      "stepId": "continuation.iteration",
-      "name": "Iterate Continuation Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "iteration",
-      "edition": "default",
-      "uvVariables": [
-        "completed_iterations",
-        "remaining"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "iteration.schema.json",
-        "schema": "continuation.iteration"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "work.work_done",
-          "iteration.completed_iterations",
-          "cumulative_progress"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.iteration"
-        },
-        "repeat": {
-          "target": "continuation.iteration"
-        },
-        "handoff": {
-          "target": "closure.iteration"
-        }
-      },
-      "description": "Continuation prompt for iteration-based execution"
-    },
-    "initial.polling": {
-      "stepId": "initial.polling",
-      "name": "External State Initial Prompt",
-      "type": "prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "polling",
-      "edition": "default",
-      "uvVariables": [
-        "issue"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "polling.schema.json",
-        "schema": "initial.polling"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "analysis.understanding",
-          "analysis.approach",
-          "issue"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.polling"
-        },
-        "repeat": {
-          "target": "initial.polling"
-        }
-      },
-      "description": "Initial prompt for external state completion (GitHub Issue state)"
-    },
-    "continuation.polling": {
-      "stepId": "continuation.polling",
-      "name": "External State Continuation Prompt",
-      "type": "prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "polling",
-      "edition": "default",
-      "uvVariables": [
-        "issue"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "polling.schema.json",
-        "schema": "continuation.polling"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "next",
-          "repeat",
-          "handoff"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "iteration.work_done",
-          "progress"
-        ]
-      },
-      "transitions": {
-        "next": {
-          "target": "continuation.polling"
-        },
-        "repeat": {
-          "target": "continuation.polling"
-        },
-        "handoff": {
-          "target": "closure.polling"
-        }
-      },
-      "description": "Continuation prompt for external state completion"
-    },
-    "closure.polling": {
-      "stepId": "closure.polling",
-      "name": "External State Closure Prompt",
-      "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "polling",
-      "edition": "default",
-      "uvVariables": [
-        "issue"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "polling.schema.json",
-        "schema": "closure.polling"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "closing",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "closing",
-        "handoffFields": []
-      },
-      "transitions": {
-        "closing": {
-          "target": null
-        },
-        "repeat": {
-          "target": "closure.polling"
-        }
-      },
-      "description": "Completion prompt for external state (terminal step)"
-    },
-    "closure.iteration": {
-      "stepId": "closure.iteration",
-      "name": "Iterate Closure Prompt",
-      "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "iteration",
-      "edition": "default",
-      "uvVariables": [
-        "completed_iterations"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "iteration.schema.json",
-        "schema": "closure.iteration"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "closing",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "closing",
-        "handoffFields": []
-      },
-      "transitions": {
-        "closing": {
-          "target": null
-        },
-        "repeat": {
-          "target": "closure.iteration"
-        }
-      },
-      "description": "Completion prompt for iteration-based execution (terminal step)"
+      "description": "Completion prompt for issue (terminal step). On run failure (validation gate fails), populate iterator_last_failure {pattern, evidence_summary, missing_acs?, kind_boundary?} so revision agents (clarifier / detailer) receive the failure context via commentTemplates.iteratorFailed."
     }
   }
 }

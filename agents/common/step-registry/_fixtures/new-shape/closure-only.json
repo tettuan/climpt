@@ -1,0 +1,35 @@
+{
+  "agentId": "fixture-closure",
+  "version": "1.0.0",
+  "c1": "steps",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "closure.polling",
+      "continuation": "closure.polling"
+    }
+  },
+  "steps": {
+    "closure.polling": {
+      "stepId": "closure.polling",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "polling",
+        "edition": "default"
+      },
+      "name": "Closure Polling",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action"
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.polling" }
+      }
+    }
+  }
+}

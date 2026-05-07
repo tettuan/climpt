@@ -1,0 +1,55 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "triage-recovery",
+  "version": "2.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "recover",
+      "continuation": "recover"
+    }
+  },
+  "steps": {
+    "recover": {
+      "stepId": "recover",
+      "name": "Recover Single Orphan Issue",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "recover",
+        "edition": "default"
+      },
+      "uvVariables": [
+        "issue",
+        "workflow"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "triage-recovery.schema.json",
+        "schema": "recover"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "recover"
+        }
+      },
+      "description": "Single-issue closure step: read target issue's labels, derive WORKFLOW_LABELS and ACTIONABLE_LABELS from the workflow JSON, verify the issue is recovery-eligible (carries ≥1 workflow label, none actionable), compute orphan_labels = labels ∩ (WORKFLOW_LABELS ∖ ACTIONABLE_LABELS), and emit closing structured output with issue.labels.remove = orphan_labels. The poll:state boundary hook applies the removal via gh issue edit --remove-label. closure_action='label-only' keeps the issue open so triager re-picks it."
+    }
+  }
+}

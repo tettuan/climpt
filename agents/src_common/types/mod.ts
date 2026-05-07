@@ -4,6 +4,7 @@
  */
 
 export * from "./agent-definition.ts";
+export * from "./agent-bundle.ts";
 export * from "./verdict.ts";
 export * from "./step-flow.ts";
 export * from "./validation.ts";

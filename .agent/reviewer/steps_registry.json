@@ -5,8 +5,14 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "poll:state": "initial.issue",
-    "count:iteration": "initial.default"
+    "poll:state": {
+      "initial": "initial.issue",
+      "continuation": "continuation.issue"
+    },
+    "count:iteration": {
+      "initial": "initial.default",
+      "continuation": "continuation.default"
+    }
   },
   "failurePatterns": {
     "git-dirty": {
@@ -41,6 +47,7 @@
   "validators": {
     "git-clean": {
       "type": "command",
+      "phase": "postllm",
       "command": "git status --porcelain",
       "successWhen": "empty",
       "failurePattern": "git-dirty",
@@ -51,6 +58,7 @@
     },
     "branch-pushed": {
       "type": "command",
+      "phase": "postllm",
       "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "successWhen": "exitCode:0",
       "failurePattern": "branch-not-pushed",
@@ -61,6 +69,7 @@
     },
     "branch-merged": {
       "type": "command",
+      "phase": "postllm",
       "command": "git log origin/develop..HEAD --oneline",
       "successWhen": "empty",
       "failurePattern": "branch-not-merged",
@@ -75,9 +84,14 @@
     "closure.review": {
       "stepId": "closure.review",
       "name": "Review Validation",
-      "c2": "retry",
-      "c3": "review",
-      "validationConditions": [
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "review",
+        "edition": "default"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "git-clean"
         },
@@ -96,17 +110,20 @@
         "file": "reviewer.schema.json",
         "schema": "closure.review"
       },
-      "description": "Validate review with git-clean, branch-pushed, branch-merged"
+      "description": "Validate review with git-clean, branch-pushed, branch-merged (all post-LLM — require LLM-driven fixes on failure)"
     }
   },
   "steps": {
     "initial.issue": {
       "stepId": "initial.issue",
       "name": "Issue Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -147,10 +164,13 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Review Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -189,10 +209,13 @@
     "initial.default": {
       "stepId": "initial.default",
       "name": "Initial Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "default",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "default",
+        "edition": "default"
+      },
       "uvVariables": [
         "project",
         "requirements_label",
@@ -235,10 +258,13 @@
     "continuation.default": {
       "stepId": "continuation.default",
       "name": "Continuation Review Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "default",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "default",
+        "edition": "default"
+      },
       "uvVariables": [
         "iteration"
       ],
@@ -278,10 +304,13 @@
       "stepId": "closure.review",
       "name": "Review Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "review",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "review",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "outputSchemaRef": {

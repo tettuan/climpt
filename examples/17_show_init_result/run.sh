@@ -8,6 +8,10 @@ source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
 AGENT_DIR=".agent/${AGENT_NAME}"
+# Per-agent Claude Agent SDK settings file. Blueprint R-F4 moved
+# permissionMode / allowedTools out of agent.json into this file.
+# Path matches agents/config/settings-loader.ts:resolveSettingsPaths().
+SETTINGS_FILE=".agent/climpt/config/claude.settings.climpt.agents.${AGENT_NAME}.json"
 
 main() {
   info "=== Show Agent Init Result: ${AGENT_NAME} ==="
@@ -18,22 +22,32 @@ main() {
     error "Run 16_init_agent/run.sh first"
     return 1
   fi
+  if [[ ! -f "${SETTINGS_FILE}" ]]; then
+    error "${SETTINGS_FILE} not found"
+    error "Run 16_init_agent/run.sh first"
+    return 1
+  fi
 
   # Show created structure (cwd = examples/)
   info "Created files:"
   find ".agent/${AGENT_NAME}" -type f | sort
   echo ""
 
-  # Show default config
+  # Show default agent.json
   info "Default agent.json:"
   jq '.' "${AGENT_DIR}/agent.json"
   echo ""
 
-  info "Default permissionMode:"
-  jq -r '.runner.boundaries.permissionMode' "${AGENT_DIR}/agent.json"
+  # Show default Claude Agent SDK settings
+  info "Default ${SETTINGS_FILE}:"
+  jq '.' "${SETTINGS_FILE}"
+  echo ""
 
-  info "Default allowedTools:"
-  jq -r '.runner.boundaries.allowedTools[]' "${AGENT_DIR}/agent.json"
+  info "Default permissions.defaultMode:"
+  jq -r '.permissions.defaultMode' "${SETTINGS_FILE}"
+
+  info "Default permissions.allow:"
+  jq -r '.permissions.allow[]?' "${SETTINGS_FILE}"
 
   # Validate initial agent configuration structure
   local runner
@@ -42,18 +56,22 @@ main() {
     error "FAIL: agent.json .runner is null or missing"; return 1
   fi
 
-  local perm_mode
-  perm_mode=$(jq -r '.runner.boundaries.permissionMode' "${AGENT_DIR}/agent.json")
-  if [[ -z "$perm_mode" ]] || [[ "$perm_mode" == "null" ]]; then
-    error "FAIL: permissionMode is empty or null"; return 1
+  # Validate the per-agent settings file (Plan Z source of truth).
+  local default_mode
+  default_mode=$(jq -r '.permissions.defaultMode // empty' "${SETTINGS_FILE}")
+  if [[ -z "$default_mode" ]]; then
+    error "FAIL: permissions.defaultMode is empty or null in ${SETTINGS_FILE}"; return 1
   fi
 
-  local tools_count
-  tools_count=$(jq '.runner.boundaries.allowedTools | length' "${AGENT_DIR}/agent.json")
-  if [[ "$tools_count" -lt 1 ]]; then
-    error "FAIL: allowedTools is empty"; return 1
+  # `allow` must be an array (possibly empty). The init template seeds [].
+  local allow_type
+  allow_type=$(jq -r '.permissions.allow | type' "${SETTINGS_FILE}")
+  if [[ "$allow_type" != "array" ]]; then
+    error "FAIL: permissions.allow must be an array (got ${allow_type})"; return 1
   fi
-  success "PASS: initial agent config validated (permissionMode=${perm_mode}, tools=${tools_count})"
+  local tools_count
+  tools_count=$(jq '.permissions.allow | length' "${SETTINGS_FILE}")
+  success "PASS: initial agent config validated (defaultMode=${default_mode}, allow=${tools_count} tools)"
 }
 
 main "$@"

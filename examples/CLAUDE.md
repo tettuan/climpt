@@ -36,7 +36,7 @@ rm tmp/.examples-run-enabled
 - 順序依存: 各 example は前ステップの状態に依存する。順序を守らないと失敗する
 - ネスト不可: Claude Code は内部で Claude Code を起動できない。直接 Bash
   で走らせると壊れる
-- 状態リセット: `53_clean`
+- 状態リセット: `99_clean`
   で全アーティファクトが消える。途中再開は不可能で最初からやり直し
 - 環境分離: examples は REPO_ROOT の `.agent/` を汚染しない。 `examples/.agent/`
   を独立した作業環境として使う
@@ -89,7 +89,7 @@ Claude Code を起動する）。
 
 ### 5. クリーンアップ後は 01 から再開する
 
-`53_clean/run.sh` は全アーティファクトを削除する。 `01_check_prerequisites`
+`99_clean/run.sh` は全アーティファクトを削除する。 `01_check_prerequisites`
 から再開すること。
 
 ## LLM ステップの認証

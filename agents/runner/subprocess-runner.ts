@@ -47,12 +47,19 @@ export interface SubprocessRunResult {
 /**
  * Command runner abstraction — allows tests to inject a stub without
  * spawning real subprocesses.
+ *
+ * T6.4: the optional `env` overlay carries Layer-4 inheritance hints
+ * (`BOOT_POLICY_FILE`, `CLIMPT_PARENT_RUN_ID`) that the parent boot
+ * forwards to the merge-pr subprocess so the merger can read +
+ * deepFreeze the *same* policy the orchestrator booted with (design
+ * 20 §E). Tests inspect this overlay to verify inheritance plumbing
+ * without spawning a real process.
  */
 export interface CommandRunner {
   run(
     command: string,
     args: string[],
-    options: { signal: AbortSignal },
+    options: { signal: AbortSignal; env?: Readonly<Record<string, string>> },
   ): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }>;
 }
 
@@ -61,13 +68,22 @@ export const defaultCommandRunner: CommandRunner = {
   async run(
     command: string,
     args: string[],
-    { signal }: { signal: AbortSignal },
+    { signal, env }: {
+      signal: AbortSignal;
+      env?: Readonly<Record<string, string>>;
+    },
   ): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }> {
     const cmd = new Deno.Command(command, {
       args,
       stdout: "piped",
       stderr: "piped",
       signal,
+      // T6.4: when the caller supplies an env overlay (Layer-4
+      // inheritance hints) merge it on top of the parent process env
+      // so the subprocess inherits the parent's PATH / HOME / etc.
+      // *plus* the inheritance variables. Without `env: undefined`
+      // Deno.Command would still inherit by default.
+      ...(env === undefined ? {} : { env: { ...Deno.env.toObject(), ...env } }),
     });
     const output = await cmd.output();
     return { code: output.code, stdout: output.stdout, stderr: output.stderr };
@@ -132,13 +148,22 @@ export function parseStructuredStdout(stdout: string): Record<string, unknown> {
  * Performs template substitution, spawns the subprocess with a timeout,
  * forwards stderr to the logger, and returns a structured result.
  *
+ * T6.4 — `options.env` is the Layer-4 inheritance overlay
+ * (`BOOT_POLICY_FILE`, `CLIMPT_PARENT_RUN_ID`). When the parent boot
+ * passed `policy.applyToSubprocess === true` the orchestrator threads
+ * `runId` here so the spawned merge-pr subprocess can read the
+ * parent-written `tmp/boot-policy-<runId>.json` and freeze it.
+ *
  * @throws Error if template substitution fails (unresolved placeholder).
  */
 export async function runSubprocessRunner(
   spec: StepSubprocessRunner,
   context: Readonly<Record<string, unknown>>,
   logger: SubprocessRunnerLogger,
-  options: { commandRunner?: CommandRunner } = {},
+  options: {
+    commandRunner?: CommandRunner;
+    env?: Readonly<Record<string, string>>;
+  } = {},
 ): Promise<SubprocessRunResult> {
   const substitutedArgs = substituteContextTemplates(spec.args, context);
   const timeoutMs = spec.timeout ?? DEFAULT_SUBPROCESS_TIMEOUT_MS;
@@ -158,7 +183,10 @@ export async function runSubprocessRunner(
   let stderrBytes: Uint8Array;
 
   try {
-    const result = await runner.run(spec.command, substitutedArgs, { signal });
+    const result = await runner.run(spec.command, substitutedArgs, {
+      signal,
+      env: options.env,
+    });
     code = result.code;
     stdoutBytes = result.stdout;
     stderrBytes = result.stderr;

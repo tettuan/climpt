@@ -27,8 +27,7 @@ your-project/
 │   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test
 └── .agent/                        # エージェント設定（オプション）
     ├── iterator/agent.json
-    ├── reviewer/agent.json
-    └── facilitator/agent.json
+    └── reviewer/agent.json
 ```
 
 ### プロンプトディレクトリの構造

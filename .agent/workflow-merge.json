@@ -1,12 +1,21 @@
 {
   "$schema": "../agents/orchestrator/workflow-schema.json",
   "version": "1.0.0",
+  "issueSource": {
+    "kind": "ghRepoIssues",
+    "projectMembership": "unbound"
+  },
   "labelPrefix": "merge",
   "phases": {
     "merge-ready": {
       "type": "actionable",
       "priority": 1,
       "agent": "merger"
+    },
+    "ci-pending": {
+      "type": "actionable",
+      "priority": 2,
+      "agent": "ci-recheck"
     },
     "merge-blocked": {
       "type": "blocking"
@@ -17,6 +26,7 @@
   },
   "labelMapping": {
     "ready": "merge-ready",
+    "ci-pending": "ci-pending",
     "blocked": "merge-blocked",
     "done": "merged"
   },
@@ -26,16 +36,35 @@
       "directory": "merger",
       "outputPhases": {
         "merged": "merged",
-        "ci-pending": "merge-ready",
+        "ci-pending": "ci-pending",
         "approvals-missing": "merge-blocked",
         "conflicts": "merge-blocked",
         "rejected": "merge-blocked"
       },
-      "fallbackPhase": "merge-blocked"
+      "fallbackPhase": "merge-blocked",
+      "closeBinding": {
+        "primary": { "kind": "outboxPre" },
+        "cascade": false,
+        "condition": "merged"
+      }
+    },
+    "ci-recheck": {
+      "role": "validator",
+      "directory": "ci-recheck",
+      "outputPhases": {
+        "green": "merge-ready",
+        "red": "merge-blocked",
+        "timeout": "merge-blocked"
+      },
+      "fallbackPhase": "ci-pending",
+      "closeBinding": {
+        "primary": { "kind": "none" }
+      }
     }
   },
   "rules": {
-    "maxCycles": 3,
+    "maxCycles": 8,
+    "maxConsecutivePhases": 3,
     "cycleDelayMs": 60000
   },
   "subjectStore": {

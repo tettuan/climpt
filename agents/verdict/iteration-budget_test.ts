@@ -27,7 +27,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: "done" },
     });
 
@@ -50,7 +50,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { status: "completed" },
     });
 
@@ -65,7 +65,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: 42 },
     });
 
@@ -80,7 +80,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: "" },
     });
 
@@ -95,7 +95,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
     });
 
     assertEquals(handler.getLastVerdict(), undefined);
@@ -109,14 +109,14 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: "done" },
     });
     assertEquals(handler.getLastVerdict(), "done");
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: "needs_detail" },
     });
     assertEquals(handler.getLastVerdict(), "needs_detail");
@@ -144,7 +144,7 @@ Deno.test(
 
     await handler.onBoundaryHook({
       stepId: "closure.consider",
-      stepKind: "closure",
+      kind: "closure",
       structuredOutput: { verdict: "done" },
     });
 

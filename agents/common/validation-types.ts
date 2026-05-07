@@ -29,6 +29,29 @@ export interface FailurePattern {
 }
 
 // ============================================================================
+// Validator Phase
+// ============================================================================
+
+/**
+ * Validator execution phase.
+ *
+ * - "preflight": Pure predicate evaluated BEFORE the LLM call. A preflight
+ *   validator MUST NOT instruct the LLM to take an action — it only decides
+ *   whether the closure step may proceed. On failure, the completion loop
+ *   aborts (AgentValidationAbortError). Typical uses: external resource
+ *   reachability, disk space, invariants the LLM cannot fix.
+ *
+ * - "postllm": Evaluated AFTER the LLM call. May produce a retry prompt that
+ *   instructs the LLM to take corrective action (commit, fix tests, etc.).
+ *   Failures feed the retry counter and obey onFailure.action.
+ *
+ * Phase is declared at validator registration time (ValidatorDefinition.phase)
+ * and asserted at steps_registry load time against the wiring slot
+ * (preflightConditions vs postLLMConditions).
+ */
+export type ValidatorPhase = "preflight" | "postllm";
+
+// ============================================================================
 // ValidatorDefinition - JSON-definable Validator specification
 // ============================================================================
 
@@ -102,6 +125,19 @@ export interface SemanticValidatorConfig {
 export interface ValidatorDefinition {
   /** Validator type */
   type: ValidatorType;
+  /**
+   * Execution phase this validator may be wired into.
+   *
+   * Declarative contract: a validator with phase "preflight" may only be
+   * referenced from ValidationStepConfig.preflightConditions; a validator
+   * with phase "postllm" may only be referenced from postLLMConditions.
+   * Mismatches are rejected at steps_registry load time.
+   *
+   * Phase may be omitted only for validators that are NOT wired into any
+   * validation step. Referencing a phase-less validator from either
+   * conditions array is a load-time error.
+   */
+  phase?: ValidatorPhase;
   /** For command type: command to execute */
   command?: string;
   /** For file type: path to check */
@@ -133,9 +169,15 @@ export interface ValidationCondition {
 }
 
 /**
- * Action on failure
+ * Action on failure.
+ *
+ * Per design 16 §C the run-time error 3 classification splits failures into
+ * ConfigurationError / ExecutionError / ConnectionError. An unrecoverable
+ * post-LLM failure (formerly `"abort"`) is now thrown as an `ExecutionError`
+ * (`AgentValidationAbortError`) — it is not a configurable action value.
+ * The remaining 2 values are the only retry-policy choices left to config.
  */
-export type FailureAction = "retry" | "abort" | "skip";
+export type FailureAction = "retry" | "skip";
 
 /**
  * On-failure action configuration
@@ -184,22 +226,39 @@ export interface OutputSchemaRef {
 // ============================================================================
 
 /**
- * Step configuration with validation conditions
+ * Step configuration with split pre-flight / post-LLM validation conditions.
  *
- * Extended step definition including validation conditions and retry settings.
+ * Two distinct condition slots are enforced structurally:
+ *
+ * - `preflightConditions` — evaluated BEFORE the LLM call. Pure predicates
+ *   only. Cannot produce a retry prompt. Failure aborts the closure step.
+ * - `postLLMConditions` — evaluated AFTER the LLM call. May produce a retry
+ *   prompt that instructs the LLM to take action. Obeys onFailure.action
+ *   and maxAttempts.
+ *
+ * Each condition's `validator` name must reference a ValidatorDefinition
+ * whose `phase` matches its slot. Mismatches are rejected at load time.
  */
 export interface ValidationStepConfig {
   /** Step ID */
   stepId: string;
   /** Display name */
-  name: string;
+  name?: string;
   /** C3L path component: c2 (retry, complete, etc.) */
   c2: string;
   /** C3L path component: c3 (issue, project, etc.) */
   c3: string;
-  /** Array of validation conditions (AND conditions) */
-  validationConditions: ValidationCondition[];
-  /** Behavior on failure */
+  /**
+   * Conditions evaluated BEFORE the LLM call (pure predicates, no retry
+   * prompt). Each referenced validator must declare `phase: "preflight"`.
+   */
+  preflightConditions: ValidationCondition[];
+  /**
+   * Conditions evaluated AFTER the LLM call. May produce a retry prompt.
+   * Each referenced validator must declare `phase: "postllm"`.
+   */
+  postLLMConditions: ValidationCondition[];
+  /** Behavior on failure (applies to postLLMConditions only) */
   onFailure: OnFailureConfig;
   /**
    * JSON Schema for structured output (inline definition).
@@ -214,6 +273,62 @@ export interface ValidationStepConfig {
   outputSchemaRef?: OutputSchemaRef;
   /** Description */
   description?: string;
+}
+
+// ============================================================================
+// Phase-split validator results
+// ============================================================================
+
+/**
+ * Pre-flight validator result.
+ *
+ * Pre-flight validators are pure predicates: they decide whether the closure
+ * step may proceed. They cannot request LLM action, so this type does NOT
+ * expose a retryPrompt field. A `reason` string is provided for diagnostics
+ * (logging / abort message only) — it is never passed to the LLM.
+ */
+export interface PreFlightValidatorResult {
+  /** Whether pre-flight validation passed */
+  valid: boolean;
+  /**
+   * Human-readable diagnostic reason for failure.
+   * Used for logging and AgentValidationAbortError message construction.
+   * This is NEVER delivered to the LLM as an instruction.
+   */
+  reason?: string;
+}
+
+/**
+ * Post-LLM validator result.
+ *
+ * Post-LLM validators run after the LLM call. They may produce a retry prompt
+ * that instructs the LLM to take corrective action (e.g. commit, fix tests).
+ * The retry counter and onFailure.action apply only to this phase.
+ *
+ * Note: the historical `ValidationResult` alias is preserved for ergonomic
+ * consumers inside agents/runner.
+ */
+export interface PostLLMValidatorResult {
+  /** Whether validation passed */
+  valid: boolean;
+  /** Retry prompt when validation failed (may instruct the LLM) */
+  retryPrompt?: string;
+  /** Format validation result (if applicable) */
+  formatValidation?: FormatValidationResultLike;
+  /** Failure action to take (only set when valid is false) */
+  action?: FailureAction;
+}
+
+/**
+ * Structural subset of FormatValidationResult used inside PostLLMValidatorResult.
+ *
+ * This is a type-only surface to avoid a runtime import cycle with
+ * agents/loop/format-validator.ts. The concrete FormatValidationResult must
+ * remain assignable to this shape.
+ */
+export interface FormatValidationResultLike {
+  valid: boolean;
+  error?: string;
 }
 
 // ============================================================================
@@ -291,16 +406,25 @@ export interface ExtendedStepsRegistry extends StepRegistry {
 // ============================================================================
 
 /**
- * Check if the step is a validation step configuration
+ * Check if the step is a validation step configuration.
+ *
+ * A valid ValidationStepConfig has BOTH `preflightConditions` and
+ * `postLLMConditions` as arrays (either may be empty). Legacy registries that
+ * still reference the old single `validationConditions` field are rejected
+ * by this guard — no backward compatibility.
  */
 export function isValidationStepConfig(
   step: unknown,
 ): step is ValidationStepConfig {
+  if (typeof step !== "object" || step === null) {
+    return false;
+  }
+  const s = step as Record<string, unknown>;
   return (
-    typeof step === "object" &&
-    step !== null &&
-    "validationConditions" in step &&
-    Array.isArray((step as ValidationStepConfig).validationConditions)
+    "preflightConditions" in s &&
+    Array.isArray(s.preflightConditions) &&
+    "postLLMConditions" in s &&
+    Array.isArray(s.postLLMConditions)
   );
 }
 

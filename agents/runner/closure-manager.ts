@@ -18,9 +18,11 @@ import {
   type ExtendedStepsRegistry,
   hasFlowRoutingSupport,
   hasValidationChainSupport,
+  type PostLLMValidatorResult,
+  type PreFlightValidatorResult,
 } from "../common/validation-types.ts";
 import { loadStepRegistry } from "../common/step-registry.ts";
-import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
+import { ValidationChain } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 import {
@@ -31,8 +33,7 @@ import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
-import type { StepRegistry } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import type { AdaptationCursor } from "./adaptation-cursor.ts";
 import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
@@ -42,6 +43,15 @@ import type { SchemaManager } from "./schema-manager.ts";
 export interface ClosureManagerDeps {
   readonly definition: AgentDefinition;
   readonly dependencies: AgentDependencies;
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.2).
+   * Forwarded to `WorkflowRouter` on construction so non-closure
+   * `intent === "repeat"` advances the chain. Optional — when omitted,
+   * `WorkflowRouter` runs with cursor disabled (legacy/test path); the
+   * closure-step path that lives in `CompletionLoopProcessor` continues
+   * to enforce termination via its own cursor reference.
+   */
+  readonly adaptationCursor?: AdaptationCursor;
 }
 
 export interface ClosureManagerState {
@@ -94,16 +104,24 @@ export class ClosureManager {
 
     try {
       // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
+      //
+      // Explicit opt-out via the discriminated `RegistryLoaderOptOutOptions`
+      // variant (T29 / critique-5 B#2): closure-manager resolves
+      // `schemasDir` from cwd-rooted `.agent/<name>/schemas` *after* load
+      // and runs `validateIntentSchemaEnums` itself a few lines below.
+      // The strict variant (default) requires `schemasDir` at the type
+      // level — picking the opt-out variant here is the only way to defer
+      // enum validation to the caller without a bogus placeholder path.
       const registry = await loadStepRegistry(
         this.deps.definition.name,
         "", // Not used when registryPath is provided
         {
           registryPath,
-          validateIntentEnums: false, // Defer enum validation
+          validateIntentEnums: false,
         },
       );
       logger.debug(
-        "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
+        "Registry validation passed (kind, entryStep, intentSchemaRef format)",
       );
 
       const schemasDir = join(
@@ -136,17 +154,22 @@ export class ClosureManager {
       const stepsRegistry: ExtendedStepsRegistry = registry;
       this.stepsRegistry = stepsRegistry;
 
-      // Always create stepPromptResolver when registry has work steps
-      // (independent of flow routing / validation chain capabilities)
-      const hasWorkSteps = Object.values(stepsRegistry.steps).some(
-        (s) => typeof s === "object" && s !== null && "stepKind" in s,
+      // Create stepPromptResolver when registry has any non-closure step
+      // (work / verification). Closure steps resolve prompts via a different
+      // path; this gate matches resolveFlowStepPrompt's closure-only filter.
+      const hasResolvableSteps = Object.values(stepsRegistry.steps).some(
+        (s) =>
+          typeof s === "object" && s !== null && "kind" in s &&
+          s.kind !== "closure",
       );
-      if (hasWorkSteps) {
+      if (hasResolvableSteps) {
         this.stepPromptResolver = new StepPromptResolver(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
-        logger.debug("StepPromptResolver initialized (work steps detected)");
+        logger.debug(
+          "StepPromptResolver initialized (resolvable steps detected)",
+        );
       }
 
       if (!hasValidationChain && !hasFlowRouting) {
@@ -214,8 +237,9 @@ export class ClosureManager {
 
         this.stepGateInterpreter = new StepGateInterpreter();
         this.workflowRouter = new WorkflowRouter(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           logger,
+          this.deps.adaptationCursor,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 
@@ -230,13 +254,17 @@ export class ClosureManager {
   }
 
   /**
-   * Validate conditions for a step.
+   * Validate post-LLM conditions for a step (Phase 2).
+   *
+   * Runs format validation when outputSchema is defined, then
+   * falls through to post-LLM validation conditions. May produce
+   * a retry prompt that instructs the LLM to take corrective action.
    */
   async validateConditions(
     stepId: string,
     _summary: IterationSummary,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<ValidationResult> {
+  ): Promise<PostLLMValidatorResult> {
     if (!this.stepsRegistry) {
       return { valid: true };
     }
@@ -257,13 +285,13 @@ export class ClosureManager {
     // Fallback to command-based validation
     if (
       !this.stepValidator ||
-      !stepConfig.validationConditions?.length
+      !stepConfig.postLLMConditions?.length
     ) {
       return { valid: true };
     }
 
     const result = await this.stepValidator.validate(
-      stepConfig.validationConditions,
+      stepConfig.postLLMConditions,
     );
 
     if (result.valid) {
@@ -290,15 +318,17 @@ export class ClosureManager {
   }
 
   /**
-   * Pre-flight state validation - runs BEFORE LLM call.
+   * Pre-flight state validation (Phase 1) — runs BEFORE the LLM call.
    *
-   * Validates only state-based conditions (command/file/semantic validators),
-   * NOT format validation (which runs post-LLM in Phase 2).
+   * Returns a `PreFlightValidatorResult` with no retry prompt. Pre-flight
+   * validators are pure predicates; on failure the caller MUST abort the
+   * closure step (no LLM invocation, no retry). Format validation is not
+   * performed here — it belongs exclusively to Phase 2.
    */
   async validateStateConditions(
     stepId: string,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<ValidationResult> {
+  ): Promise<PreFlightValidatorResult> {
     if (!this.stepsRegistry) {
       return { valid: true };
     }
@@ -308,8 +338,8 @@ export class ClosureManager {
       return { valid: true };
     }
 
-    // Skip if no validation conditions to check
-    if (!stepConfig.validationConditions?.length) {
+    // Skip if no pre-flight conditions configured
+    if (!stepConfig.preflightConditions?.length) {
       return { valid: true };
     }
 
@@ -325,7 +355,7 @@ export class ClosureManager {
 
     logger.info(`Pre-flight state validation for step: ${stepId}`);
     const result = await this.stepValidator.validate(
-      stepConfig.validationConditions,
+      stepConfig.preflightConditions,
     );
 
     if (result.valid) {
@@ -333,22 +363,10 @@ export class ClosureManager {
       return { valid: true };
     }
 
-    logger.warn(`Pre-flight validation failed: pattern=${result.pattern}`);
-
-    if (this.retryHandler && result.pattern) {
-      const retryPrompt = await this.retryHandler.buildRetryPrompt(
-        stepConfig,
-        result,
-      );
-      return { valid: false, retryPrompt };
-    }
-
-    return {
-      valid: false,
-      retryPrompt: `State validation conditions not met: ${
-        result.error ?? result.pattern
-      }`,
-    };
+    const reason = result.error ?? result.pattern ??
+      "pre-flight validation failed";
+    logger.warn(`Pre-flight validation failed: ${reason}`);
+    return { valid: false, reason };
   }
 
   /**
@@ -397,26 +415,32 @@ export class ClosureManager {
   async resolveFlowStepPrompt(
     stepId: string,
     variables: Record<string, string>,
+    overrides?: { adaptation?: string },
   ): Promise<PromptResolutionResult | null> {
     if (!this.stepPromptResolver || !this.stepsRegistry) {
       return null;
     }
 
-    const stepDef = (this.stepsRegistry as unknown as StepRegistry)
-      .steps?.[stepId];
+    const stepDef = this.stepsRegistry.steps?.[stepId];
     if (!stepDef) {
       return null;
     }
 
-    const stepKind = inferStepKind(stepDef);
-    if (stepKind === "closure") {
+    const kind = stepDef.kind;
+    if (kind === "closure") {
       return null;
     }
 
-    // Flow Loop: C3L-only, errors propagate
+    // Flow Loop: C3L-only, errors propagate. `overrides.adaptation` is the
+    // entry point for self-route adaptation (design 01-self-route-
+    // termination §3.2) — when WorkflowRouter advanced the cursor on the
+    // previous iteration's `intent === "repeat"`, the runner threads the
+    // resolved chain element here so the C3L address `f_{edition}_
+    // {adaptation}.md` materializes the declared variant.
     return await this.stepPromptResolver.resolve(
       stepId,
       { uv: variables },
+      overrides,
     );
   }
 

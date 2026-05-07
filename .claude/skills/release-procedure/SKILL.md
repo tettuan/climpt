@@ -130,7 +130,7 @@ chmod +x examples/**/*.sh examples/*.sh
 
 クリーンアップ（E2E生成物を除去し working tree を clean に戻す）:
 ```bash
-./examples/53_clean/run.sh
+./examples/99_clean/run.sh
 git checkout -- .
 ```
 

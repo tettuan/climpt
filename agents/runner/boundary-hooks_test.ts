@@ -11,6 +11,7 @@ import { AgentEventEmitter } from "./events.ts";
 import type { BoundaryHookPayload } from "./events.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("boundary");
 
@@ -66,12 +67,11 @@ function createClosureRegistry(): ExtendedStepsRegistry {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "closure.test": {
+      "closure.test": makeStep({
+        kind: "closure" as const,
+        address: { c1: "steps", c2: "closure", c3: "test", edition: "default" },
         stepId: "closure.test",
         name: "Closure Test",
-        c2: "closure",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -79,16 +79,15 @@ function createClosureRegistry(): ExtendedStepsRegistry {
           intentField: "next_action.action",
           intentSchemaRef: "#/test",
         },
-      },
-      "initial.test": {
+      }),
+      "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Initial Test",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 }
@@ -163,7 +162,7 @@ Deno.test("BoundaryHooks - emits event for closure step", async () => {
 
   assertEquals(emitted.length, 1);
   assertEquals(emitted[0].stepId, "closure.test");
-  assertEquals(emitted[0].stepKind, "closure");
+  assertEquals(emitted[0].kind, "closure");
 });
 
 Deno.test("BoundaryHooks - calls onBoundaryHook handler", async () => {
@@ -215,7 +214,7 @@ Deno.test("BoundaryHooks - correct payload structure", async () => {
 
   assertEquals(receivedPayload !== null, true);
   assertEquals(receivedPayload!.stepId, "closure.test");
-  assertEquals(receivedPayload!.stepKind, "closure");
+  assertEquals(receivedPayload!.kind, "closure");
   assertEquals(
     (receivedPayload!.structuredOutput as Record<string, unknown>)
       ?.release_version,

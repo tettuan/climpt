@@ -19,34 +19,56 @@ Changes to the runner should be validated against these configurations.
 |-------------|--------------------------------------|
 | iterator    | Development task execution via Issues |
 | reviewer    | Code review and verification         |
-| facilitator | Project monitoring and coordination  |
 | climpt      | MCP command registry and prompts     |
-| triager     | Classify unlabeled issues (kind:* + order:N) |
+| triager     | **Classify only** — assign `kind:*` to one open issue (per-issue dispatch). Does NOT assign `order:N` |
+| prioritizer | **Order only** — assign `order:N` to the kind-labeled candidate set (batch dispatch). Reads `issue-list.json`, writes `priorities.json` |
+| triage-recovery | Per-issue: strip orphan workflow labels from one issue both triager and orchestrator skip (poll:state, label-only) |
 | considerer  | Respond to kind:consider issues and close them |
+| detailer    | Detail a kind:detail issue (spec) before iterator picks it up |
+| clarifier   | Scan need-clearance issues, apply 5-gate rubric, re-queue or record reason |
 | merger      | Deterministic PR merge closure       |
 
-## Issue handling flow (triage → execute)
+**triager / prioritizer split**: classification and prioritization are
+separated by single responsibility. Triager looks at one issue at a time
+and decides "what kind of work is this" (`kind:impl|consider|design`).
+Prioritizer looks at the entire kind-labeled candidate set at once and
+decides "in what order should these run" (`order:N`). Per-issue dispatch
+cannot rank issues — that is why the prioritizer is a separate, batch-mode
+agent. See `.agent/triager/README.md` and `.agent/prioritizer/README.md`.
 
-Two-stage pipeline for GitHub Issues:
+## Issue handling flow (classify → prioritize → execute)
 
-1. **Triage** (standalone agent, bypasses orchestrator):
+Three-stage pipeline for GitHub Issues:
+
+1. **Classify** (triager, per-issue, ad-hoc):
 
    ```bash
-   deno task agent --agent triager
-   # or with explicit downstream workflow:
-   deno task agent --agent triager --workflow .agent/workflow.json
+   deno task agent --agent triager --issue <N>
+   # or fan-out via the dispatcher shell:
+   bash .agent/triager/script/dispatch.sh
+   PROJECT=tettuan/41 bash .agent/triager/script/dispatch.sh
    ```
 
-   Triager reads the downstream workflow JSON (default
-   `.agent/workflow.json`) to derive the **workflow label
-   set** dynamically from `labelMapping` keys + `prioritizer.labels`. It
-   bootstraps any missing labels in the repo, then scans all open issues
-   that carry **none** of the workflow labels (issues with only unrelated
-   tags like `enhancement` remain eligible), classifies each as `kind:impl`
-   or `kind:consider`, and assigns a unique `order:N` (N = 1..9, lowest
-   unused) work-order label.
+   Triager reads ONE issue's `title + body` and assigns exactly one
+   `kind:*` label (`kind:impl|kind:consider|kind:design`) via the
+   poll:state boundary hook. It does NOT assign `order:N`. The per-issue
+   dispatcher skips any issue that already carries a `kind:*` label.
 
-2. **Execute** (orchestrator workflow):
+2. **Prioritize** (prioritizer, batch):
+
+   ```bash
+   deno task orchestrator --prioritize
+   # or with project scope:
+   deno task orchestrator --project tettuan/41 --prioritize
+   ```
+
+   The orchestrator's `--prioritize` mode dispatches the prioritizer agent
+   (`workflow.json#prioritizer.agent`) once with the full candidate list
+   (`issue-list.json`). The agent compares the issues globally and writes
+   `priorities.json` mapping each issue to one of `order:1..order:9`. The
+   orchestrator then applies the labels via gh.
+
+3. **Execute** (orchestrator workflow):
 
    ```bash
    deno task orchestrator
@@ -61,12 +83,46 @@ Two-stage pipeline for GitHub Issues:
 
    Single-issue mode: append `--issue <N>` to target one issue.
 
+4. **Orphan recovery** (ad-hoc, per-issue dispatch):
+
+   Issues that carry ≥1 workflow label but **zero** actionable-phase
+   labels are invisible to both triager and orchestrator. The
+   triage-recovery agent strips the orphan workflow labels so the
+   issue falls back to the unlabeled state and re-enters triage on
+   the next run.
+
+   ```bash
+   bash .agent/triage-recovery/script/dispatch.sh
+   ```
+
+   See `.agent/triage-recovery/script/README.md`. Discard when the
+   product orchestrator supports orphan-issue dispatch directly.
+
 Repository labels (name, color, description) are the declarative source
 of truth in `.agent/workflow.json` under the `labels` section. The
-orchestrator reconciles them on every batch start, and the triager does
-the same via `deno task labels:sync` as its Step 1. Contributors who add
+orchestrator reconciles them on every batch start. Contributors who add
 or rename a workflow label MUST update `labels` in `workflow.json` —
-never the triager prompt (which now only invokes the syncer).
+never an agent prompt.
+
+## Directory layout
+
+The top-level convention under `.agent/` is one directory per agent
+(`.agent/{agent-name}/`). Anything that is not owned by a single agent —
+shared runtime artifacts, cross-agent handoff drops, common output state —
+MUST live under `.agent/climpt/`, never at `.agent/<top-level>/`.
+
+| Path | Owner | Purpose |
+|------|-------|---------|
+| `.agent/{agent-name}/` | one agent | source files (agent.json, prompts/, schemas/, steps_registry.json) |
+| `.agent/climpt/tmp/issues-execute/<N>/outbox/` | shared | per-issue handoff outbox, subject store |
+| `.agent/climpt/out/` | shared | shared runtime output drop (currently unused; reserved for future cross-agent artifacts) |
+| `.agent/workflow.json` | shared | workflow definition, labels, projectBinding |
+| `.agent/recovery-procedures.md` | shared | exception-only manual recovery steps for poisoned workflow state (cycle reset 等) |
+
+When introducing a new shared artifact, place it under `.agent/climpt/` and
+reference it from the consuming agents' prompts. Do NOT create new top-level
+directories like `.agent/out/` — that violates the per-agent convention and
+makes the writer ambiguous (`.agent/out/` could be written by anyone).
 
 ## Operating contexts
 

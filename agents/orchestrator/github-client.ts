@@ -7,8 +7,35 @@
  */
 
 import type { IssueCriteria } from "./workflow-types.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 
 export type { IssueCriteria };
+
+/** GitHub Project v2 metadata. */
+export interface Project {
+  id: string;
+  number: number;
+  owner: string;
+  title: string;
+  readme: string;
+  shortDescription: string | null;
+  closed: boolean;
+}
+
+/** An issue item within a Project v2. */
+export interface ProjectItem {
+  id: string;
+  issueNumber: number;
+  fieldValues: Record<string, unknown>;
+}
+
+/** A field definition within a Project v2. */
+export interface ProjectField {
+  id: string;
+  name: string;
+  type: "text" | "number" | "date" | "single_select" | "iteration";
+  options?: { id: string; name: string }[];
+}
 
 /** Summary item returned by listIssues. */
 export interface IssueListItem {
@@ -77,14 +104,114 @@ export interface GitHubClient {
     color: string,
     description: string,
   ): Promise<void>;
+
+  /**
+   * Project v2 operations — additive extensions for v1.14.x project
+   * orchestration. See `agents/docs/design/13_project_orchestration.md` §2.2.
+   */
+  addIssueToProject(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string>;
+  updateProjectItemField(
+    project: ProjectRef,
+    itemId: string,
+    fieldId: string,
+    value: ProjectFieldValue,
+  ): Promise<void>;
+  closeProject(project: ProjectRef): Promise<void>;
+
+  /**
+   * Resolve an issue number to its project item ID within a project.
+   * Returns null if the issue is not a member of the project.
+   * Required for Status field updates via updateProjectItemField.
+   */
+  getProjectItemIdForIssue(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string | null>;
+
+  /**
+   * List all issue items in a project.
+   * Returns issue numbers and their project item IDs.
+   * Used by IssueSyncer for per-project batch filtering.
+   */
+  listProjectItems(
+    project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]>;
+
+  /**
+   * List the projects (v2) that an issue belongs to.
+   * Returns an array of ProjectRef-compatible objects (owner + number).
+   * Used by the post-close completion check to find which projects
+   * a closed issue affects.
+   */
+  getIssueProjects(
+    issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>>;
+
+  /**
+   * Create a new option for a single-select project field.
+   * Used to bootstrap Status options (e.g. "Blocked") that do not
+   * yet exist in the project field definition.
+   */
+  createProjectFieldOption(
+    project: ProjectRef,
+    fieldId: string,
+    name: string,
+    color?: string,
+  ): Promise<{ id: string; name: string }>;
+
+  /**
+   * List all projects (v2) for a given owner.
+   * Returns project metadata including readme and closed state.
+   */
+  listUserProjects(owner: string): Promise<Project[]>;
+
+  /**
+   * Get full project metadata by reference.
+   * Returns a single Project with id, title, readme, etc.
+   */
+  getProject(project: ProjectRef): Promise<Project>;
+
+  /**
+   * List field definitions for a project.
+   * Returns field metadata including options for single_select fields.
+   */
+  getProjectFields(project: ProjectRef): Promise<ProjectField[]>;
+
+  /**
+   * Remove an item from a project by its project item ID.
+   * The item is deleted from the project but the underlying issue remains.
+   */
+  removeProjectItem(project: ProjectRef, itemId: string): Promise<void>;
 }
 
 /** Concrete implementation using `gh` CLI via Deno.Command. */
 export class GhCliClient implements GitHubClient {
   #cwd: string;
+  #cache: Map<string, { data: unknown; expiry: number }> = new Map();
+  static readonly #CACHE_TTL_MS = 30_000;
 
   constructor(cwd: string) {
     this.#cwd = cwd;
+  }
+
+  #cacheGet<T>(key: string): T | undefined {
+    const entry = this.#cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiry) {
+      this.#cache.delete(key);
+      return undefined;
+    }
+    return entry.data as T;
+  }
+
+  #cacheSet(key: string, data: unknown): void {
+    this.#cache.set(key, {
+      data,
+      expiry: Date.now() + GhCliClient.#CACHE_TTL_MS,
+    });
   }
 
   async getIssueLabels(subjectId: string | number): Promise<string[]> {
@@ -498,5 +625,594 @@ export class GhCliClient implements GitHubClient {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(`Failed to update label "${name}": ${stderr}`);
     }
+  }
+
+  /** Resolve a ProjectRef to owner and number for gh CLI commands. */
+  #resolveProjectRef(
+    ref: ProjectRef,
+  ): { owner: string; number: number } {
+    if ("owner" in ref && "number" in ref) {
+      return { owner: ref.owner, number: ref.number };
+    }
+    // Node ID refs require GraphQL to resolve owner/number; for now
+    // only owner+number refs are supported by the CLI client.
+    throw new Error(
+      `GhCliClient does not support ProjectRef by id — use {owner, number}`,
+    );
+  }
+
+  async addIssueToProject(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "item-add",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--url",
+        `https://github.com/${owner}/${this.#repoName()}/issues/${issueNumber}`,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to add issue #${issueNumber} to project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    try {
+      const data = JSON.parse(stdout) as { id: string };
+      return data.id;
+    } catch {
+      // Fallback: return raw output when JSON parsing fails
+      return stdout;
+    }
+  }
+
+  async updateProjectItemField(
+    project: ProjectRef,
+    itemId: string,
+    fieldId: string,
+    value: ProjectFieldValue,
+  ): Promise<void> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const args = [
+      "project",
+      "item-edit",
+      "--id",
+      itemId,
+      "--project-id",
+      String(projectNumber),
+      "--field-id",
+      fieldId,
+    ];
+    // Value serialization depends on type
+    if (typeof value === "string") {
+      args.push("--text", value);
+    } else if (typeof value === "number") {
+      args.push("--number", String(value));
+    } else if ("optionId" in value) {
+      args.push("--single-select-option-id", value.optionId);
+    } else if ("date" in value) {
+      args.push("--date", value.date);
+    }
+    // gh project item-edit requires --owner
+    args.push("--owner", owner);
+
+    const cmd = new Deno.Command("gh", {
+      args,
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to update project item field: ${stderr}`,
+      );
+    }
+  }
+
+  async closeProject(project: ProjectRef): Promise<void> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "close",
+        String(projectNumber),
+        "--owner",
+        owner,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to close project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+  }
+
+  async getProjectItemIdForIssue(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string | null> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "item-list",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to list project items for ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      items: {
+        id: string;
+        content: { number: number; type: string };
+      }[];
+    };
+    const match = data.items.find(
+      (item) =>
+        item.content?.type === "Issue" &&
+        item.content?.number === issueNumber,
+    );
+    return match?.id ?? null;
+  }
+
+  async listProjectItems(
+    project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    const cacheKey = `listProjectItems:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<{ id: string; issueNumber: number }[]>(
+      cacheKey,
+    );
+    if (cached) return cached;
+
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "item-list",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to list project items for ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      items: {
+        id: string;
+        content: { number: number; type: string };
+      }[];
+    };
+    const result = data.items
+      .filter((item) => item.content?.type === "Issue")
+      .map((item) => ({
+        id: item.id,
+        issueNumber: item.content.number,
+      }));
+    this.#cacheSet(cacheKey, result);
+    return result;
+  }
+
+  async getIssueProjects(
+    issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    const cacheKey = `getIssueProjects:${JSON.stringify([issueNumber])}`;
+    const cached = this.#cacheGet<Array<{ owner: string; number: number }>>(
+      cacheKey,
+    );
+    if (cached) return cached;
+
+    // `gh issue view --json projectItems` only exposes `{status, title}` per
+    // item; project owner/number are not in that schema. Fall through to a
+    // GraphQL query that explicitly resolves project owner login + number.
+    const { owner, name } = await this.#resolveCurrentRepo();
+    const query = `query($owner: String!, $name: String!, $number: Int!) {
+        repository(owner: $owner, name: $name) {
+          issue(number: $number) {
+            projectItems(first: 20) {
+              nodes {
+                project {
+                  number
+                  owner {
+                    ... on User { login }
+                    ... on Organization { login }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`;
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "api",
+        "graphql",
+        "-f",
+        `query=${query}`,
+        "-f",
+        `owner=${owner}`,
+        "-f",
+        `name=${name}`,
+        "-F",
+        `number=${issueNumber}`,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to get projects for issue #${issueNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const parsed = JSON.parse(stdout) as {
+      data: {
+        repository: {
+          issue: {
+            projectItems: {
+              nodes: Array<{
+                project: { number: number; owner: { login: string } };
+              }>;
+            };
+          } | null;
+        } | null;
+      };
+    };
+    const nodes = parsed.data?.repository?.issue?.projectItems?.nodes ?? [];
+    const results = nodes.map((n) => ({
+      owner: n.project.owner.login,
+      number: n.project.number,
+    }));
+    this.#cacheSet(cacheKey, results);
+    return results;
+  }
+
+  /** Resolve `<owner>/<name>` of the current repo via gh CLI. Cached. */
+  async #resolveCurrentRepo(): Promise<{ owner: string; name: string }> {
+    const cacheKey = "resolveCurrentRepo";
+    const cached = this.#cacheGet<{ owner: string; name: string }>(cacheKey);
+    if (cached) return cached;
+    const cmd = new Deno.Command("gh", {
+      args: ["repo", "view", "--json", "owner,name"],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to resolve current repo: ${stderr}`);
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      owner: { login: string };
+      name: string;
+    };
+    const result = { owner: data.owner.login, name: data.name };
+    this.#cacheSet(cacheKey, result);
+    return result;
+  }
+
+  async createProjectFieldOption(
+    project: ProjectRef,
+    fieldId: string,
+    name: string,
+    color?: string,
+  ): Promise<{ id: string; name: string }> {
+    // GraphQL mutation required — gh CLI does not expose field option creation.
+    // Resolve project to node ID via gh project view if owner+number form.
+    const projectId = await this.#resolveProjectNodeId(project);
+    const ghColor = color?.toUpperCase() ?? "GRAY";
+    const query = `
+      mutation($projectId: ID!, $fieldId: ID!, $name: String!, $color: ProjectV2SingleSelectFieldOptionColor!) {
+        createProjectV2FieldOption(input: {
+          projectId: $projectId
+          fieldId: $fieldId
+          name: $name
+          color: $color
+        }) {
+          projectV2SingleSelectFieldOption {
+            id
+            name
+          }
+        }
+      }
+    `;
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "api",
+        "graphql",
+        "-f",
+        `query=${query}`,
+        "-f",
+        `projectId=${projectId}`,
+        "-f",
+        `fieldId=${fieldId}`,
+        "-f",
+        `name=${name}`,
+        "-f",
+        `color=${ghColor}`,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to create project field option "${name}": ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      data: {
+        createProjectV2FieldOption: {
+          projectV2SingleSelectFieldOption: { id: string; name: string };
+        };
+      };
+    };
+    return data.data.createProjectV2FieldOption
+      .projectV2SingleSelectFieldOption;
+  }
+
+  async listUserProjects(owner: string): Promise<Project[]> {
+    const cacheKey = `listUserProjects:${JSON.stringify([owner])}`;
+    const cached = this.#cacheGet<Project[]>(cacheKey);
+    if (cached) return cached;
+
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "list",
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to list projects for ${owner}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+    const data = JSON.parse(stdout) as {
+      projects: {
+        id: string;
+        number: number;
+        title: string;
+        shortDescription: string | null;
+        readme: string;
+        closed: boolean;
+      }[];
+    };
+    const result = (data.projects ?? []).map((p) => ({
+      id: p.id,
+      number: p.number,
+      owner,
+      title: p.title,
+      readme: p.readme ?? "",
+      shortDescription: p.shortDescription ?? null,
+      closed: p.closed ?? false,
+    }));
+    this.#cacheSet(cacheKey, result);
+    return result;
+  }
+
+  async getProject(project: ProjectRef): Promise<Project> {
+    const cacheKey = `getProject:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<Project>(cacheKey);
+    if (cached) return cached;
+
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "view",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to get project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      id: string;
+      number: number;
+      title: string;
+      shortDescription: string | null;
+      readme: string;
+      closed: boolean;
+    };
+    const result: Project = {
+      id: data.id,
+      number: data.number,
+      owner,
+      title: data.title,
+      readme: data.readme ?? "",
+      shortDescription: data.shortDescription ?? null,
+      closed: data.closed ?? false,
+    };
+    this.#cacheSet(cacheKey, result);
+    return result;
+  }
+
+  async getProjectFields(project: ProjectRef): Promise<ProjectField[]> {
+    const cacheKey = `getProjectFields:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<ProjectField[]>(cacheKey);
+    if (cached) return cached;
+
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "field-list",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to list fields for project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+    const data = JSON.parse(stdout) as {
+      fields: {
+        id: string;
+        name: string;
+        type: string;
+        options?: { id: string; name: string }[];
+      }[];
+    };
+    const result = (data.fields ?? []).map((f) => ({
+      id: f.id,
+      name: f.name,
+      type: f.type as ProjectField["type"],
+      ...(f.options ? { options: f.options } : {}),
+    }));
+    this.#cacheSet(cacheKey, result);
+    return result;
+  }
+
+  async removeProjectItem(
+    project: ProjectRef,
+    itemId: string,
+  ): Promise<void> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "item-delete",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--id",
+        itemId,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to remove item ${itemId} from project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+  }
+
+  /**
+   * Resolve a ProjectRef to a GraphQL node ID.
+   * owner+number form requires a lookup via `gh project view`.
+   */
+  async #resolveProjectNodeId(ref: ProjectRef): Promise<string> {
+    if ("id" in ref) return ref.id;
+    const { owner, number: projectNumber } = ref;
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "view",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to resolve project node ID for ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as { id: string };
+    return data.id;
+  }
+
+  /** Extract repo name from cwd for URL construction. */
+  #repoName(): string {
+    // Best-effort: use the last path component of cwd
+    const parts = this.#cwd.split("/").filter(Boolean);
+    return parts[parts.length - 1] ?? "unknown";
   }
 }

@@ -65,6 +65,29 @@ When all conditions are met, report in structured output:
 - `issue.labels`: { add: [...], remove: [...] } (optional, to override defaults)
 - `validation`: { git_clean, type_check_passed, tests_passed, ... }
 - `evidence`: { git_status_output, type_check_output, ... }
+- `iterator_last_failure`: `null` on success.
+
+### Failure Report (when validation cannot be made green)
+
+When the run ends with `status: "failed"` (transformer outcome maps to
+`failed`, orchestrator routes to `blocked`), populate
+`iterator_last_failure` so revision agents (clarifier, detailer) receive
+the differentiating evidence on retry. Do NOT leave this field absent on
+failure — silent failure causes clarifier/detailer to repeat the
+same spec without new input.
+
+- `iterator_last_failure.pattern`: one of the `failurePatterns` keys in
+  `steps_registry.json#failurePatterns` (e.g. `ac-evidence-missing`,
+  `kind-boundary-breach`, `test-failed`). Use `unspecified` only if the
+  failure mode genuinely cannot be classified.
+- `iterator_last_failure.evidence_summary`: 1-3 sentences naming the
+  exact gate that failed and the observed signal (test name, type
+  error file, missing AC ids, etc.).
+- `iterator_last_failure.missing_acs` (optional): ac_id list when
+  `pattern` ∈ {`ac-evidence-missing`, `ac-typed-prefix-violated`}.
+- `iterator_last_failure.kind_boundary` (optional):
+  `{ violations: [{path, reason}, ...] }` when
+  `pattern: "kind-boundary-breach"`.
 
 ## Boundary Hook
 

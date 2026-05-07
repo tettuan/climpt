@@ -110,7 +110,7 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["next", "repeat", "handoff"],
+            "enum": ["next", "repeat"],
             "description": "Intent for continuation step"
           },
           "reason": { "type": "string" },
@@ -138,6 +138,224 @@
         }
       },
       "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "closure.issue.precheck-kind-read": {
+    "type": "object",
+    "description": "Audit-only kind-read precheck step. Always emits next; never repeats. Action enum is restricted to ['next'] to prevent self-loops on a best-effort artifact read.",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "additionalProperties": false,
+    "properties": {
+      "stepId": { "type": "string" },
+      "status": { "type": "string" },
+      "summary": { "type": "string" },
+      "tools_used": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next"],
+            "description": "Intent for closure.issue.precheck-kind-read (next-only — kind_at_triage is best-effort and never gates the chain)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
+      "issue": {
+        "type": "object",
+        "description": "Issue情報",
+        "properties": {
+          "number": { "type": "integer" },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "add": { "type": "array", "items": { "type": "string" } },
+              "remove": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at run start, propagated via handoffFields"
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1 carry-over: commits in this run referencing (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3 carry-over",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only. Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt; null on missing/invalid. Do not branch behavior on this field — the live kind:* label is authoritative."
+      }
+    }
+  },
+
+  "closure.issue.precheck": {
+    "type": "object",
+    "description": "Issue closure precheck step response (chain-internal verification step that advances via 'next')",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "additionalProperties": false,
+    "properties": {
+      "stepId": { "type": "string" },
+      "status": { "type": "string" },
+      "summary": { "type": "string" },
+      "tools_used": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "Intent for closure precheck step (next=advance to next precheck, repeat=retry current)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
+      "issue": {
+        "type": "object",
+        "description": "Issue情報",
+        "properties": {
+          "number": { "type": "integer" },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "add": { "type": "array", "items": { "type": "string" } },
+              "remove": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at run start, propagated via handoffFields"
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1: commits in this run that reference (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3: per-sha existence, off-run flag, and changed_paths",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "ac_list": {
+        "type": "array",
+        "description": "RC5 S1: extracted acceptance criteria bullets",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "text"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "ac_mapping": {
+        "type": "array",
+        "description": "RC5 S2: AC to evidence path mapping",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "evidence_paths", "evidence_type"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "evidence_paths": { "type": "array", "items": { "type": "string" } },
+            "evidence_type": { "type": "string" }
+          }
+        }
+      },
+      "ac_evidence_all_nonempty": {
+        "type": "boolean",
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
+      },
+      "missing_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
+        "items": { "type": "string" }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null) when the artifact does not exist; do not branch behavior on this field."
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "Out-of-scope paths for the current kind:* label (live label, not kind_at_triage)",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     }
   },
 
@@ -243,6 +461,165 @@
         "type": "array",
         "items": { "$ref": "common.schema.json#/$defs/commitInfo" },
         "description": "Issue解決に含まれる全コミット"
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at the start of this run (RC3). Propagated via handoffFields from initial.polling."
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1: commits in this run that reference (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3: per-sha existence, off-run flag, and changed_paths",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "ac_list": {
+        "type": "array",
+        "description": "RC5 S1: extracted acceptance criteria bullets",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "text"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "ac_mapping": {
+        "type": "array",
+        "description": "RC5 S2: AC to evidence path mapping",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "evidence_paths", "evidence_type"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "evidence_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "evidence_type": { "type": "string" }
+          }
+        }
+      },
+      "ac_evidence_all_nonempty": {
+        "type": "boolean",
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
+      },
+      "missing_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
+        "items": { "type": "string" }
+      },
+      "kind_at_triage": {
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null). Populated best-effort by closure.issue.precheck-kind-read; do not gate verdict on this field."
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "Out-of-scope paths for the issue's current kind:* label (live label, not kind_at_triage). Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry.",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      "iterator_last_failure": {
+        "type": ["object", "null"],
+        "description": "Failure context propagated to revision agents (clarifier / detailer) when the closure verdict ends the run with status=failed (transformer outcome maps to 'failed'). Null when the run completed cleanly. The orchestrator surfaces this via commentTemplates.iteratorFailed using a stable comment anchor so downstream agents can read failure-specific evidence.",
+        "additionalProperties": false,
+        "required": ["pattern", "evidence_summary"],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "enum": [
+              "git-dirty",
+              "test-failed",
+              "type-error",
+              "lint-error",
+              "format-error",
+              "file-not-exists",
+              "branch-not-pushed",
+              "branch-not-merged",
+              "commit-binding-missing",
+              "off-run-only",
+              "ac-evidence-missing",
+              "ac-typed-prefix-violated",
+              "kind-boundary-breach",
+              "unspecified"
+            ],
+            "description": "failurePatterns key from steps_registry.json#failurePatterns. 'unspecified' when the failure mode was not classified (best-effort). Mirrors validators[].failurePattern."
+          },
+          "evidence_summary": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable 1-3 sentence summary of what failed. Captured at end-of-run; not parsed downstream beyond display in the failure comment."
+          },
+          "missing_acs": {
+            "type": "array",
+            "description": "ac_id values lacking evidence (only when pattern=ac-evidence-missing or ac-typed-prefix-violated).",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "kind_boundary": {
+            "type": "object",
+            "description": "Out-of-scope path violations (only when pattern=kind-boundary-breach).",
+            "additionalProperties": false,
+            "required": ["violations"],
+            "properties": {
+              "violations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "reason"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "reason": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

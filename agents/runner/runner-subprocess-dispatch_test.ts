@@ -12,12 +12,13 @@
  * AgentRunner fetches the step definition via closureManager.stepsRegistry.
  * Exercising the dispatch branch directly requires a live AgentRunner, which
  * pulls in many dependencies. Instead, we test the atomic building blocks
- * (runSubprocessRunner + PromptStepDefinition type contract) and the
+ * (runSubprocessRunner + Step type contract) and the
  * non-interference invariant via reviewing the dispatch source contract.
  */
 
 import { assertEquals } from "@std/assert";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import {
   type CommandRunner,
   runSubprocessRunner,
@@ -47,27 +48,25 @@ function okRunner(stdout: string, stderr = ""): CommandRunner {
 }
 
 // -----------------------------------------------------------------------------
-// PromptStepDefinition type contract — runner field is optional
+// Step type contract — runner field is optional
 // -----------------------------------------------------------------------------
 
-Deno.test("PromptStepDefinition - runner field is optional (non-interference)", () => {
-  const withoutRunner: PromptStepDefinition = {
+Deno.test("Step - runner field is optional (non-interference)", () => {
+  const withoutRunner: Step = makeStep({
+    kind: "closure" as const,
+    address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
     stepId: "closure.legacy",
     name: "Legacy closure",
-    c2: "closure",
-    c3: "legacy",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
-  };
+  });
   assertEquals(withoutRunner.runner, undefined);
 
-  const withRunner: PromptStepDefinition = {
+  const withRunner: Step = makeStep({
+    kind: "closure" as const,
+    address: { c1: "steps", c2: "closure", c3: "merge", edition: "default" },
     stepId: "closure.merge",
     name: "Merge closure",
-    c2: "closure",
-    c3: "merge",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
     runner: {
@@ -75,7 +74,7 @@ Deno.test("PromptStepDefinition - runner field is optional (non-interference)", 
       args: ["run", "script.ts", "--pr", "${context.prNumber}"],
       timeout: 30000,
     },
-  };
+  });
   assertEquals(withRunner.runner?.command, "deno");
   assertEquals(withRunner.runner?.timeout, 30000);
 });
@@ -200,16 +199,15 @@ Deno.test(
     // branch (agents/runner/runner.ts `getSubprocessRunnerStep`) returns
     // null when runner.command is falsy, causing the existing Completion
     // Loop path (runClosureIteration → LLM) to execute unchanged.
-    const legacyStep: PromptStepDefinition = {
+    const legacyStep: Step = makeStep({
+      kind: "closure" as const,
+      address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
       stepId: "closure.legacy",
       name: "Legacy closure",
-      c2: "closure",
-      c3: "legacy",
-      edition: "default",
       uvVariables: [],
       usesStdin: false,
-      // no runner field
-    };
+      // no runner field,
+    });
 
     // Contract: getSubprocessRunnerStep returns null iff runner.command
     // is falsy. This is the non-interference guarantee for existing agents.

@@ -1,21 +1,230 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "considerer",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "consider"
+    "count:iteration": {
+      "initial": "closure.consider.doc-scan",
+      "continuation": "closure.consider.doc-scan"
+    }
   },
   "steps": {
+    "closure.consider.doc-scan": {
+      "stepId": "closure.consider.doc-scan",
+      "name": "Scan Issue For Required Doc Paths",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-scan"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Extract every doc path mentioned in issue body + comments (docs/**, **/design*.md, agents/docs/**). Read-only; single artifact = doc_paths_required.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.doc-scan"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "doc_paths_required"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.doc-verify"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-scan"
+        }
+      }
+    },
+    "closure.consider.doc-verify": {
+      "stepId": "closure.consider.doc-verify",
+      "name": "Verify Required Doc Paths Have Diffs",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-verify"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "For each required doc path, record diffed (true/false) against the issue baseline. Always emits next; verdict authority lives in the terminal consider step, which receives doc_diff_results and doc_evidence as inputs.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.doc-verify"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.doc-evidence"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-verify"
+        }
+      }
+    },
+    "closure.consider.doc-evidence": {
+      "stepId": "closure.consider.doc-evidence",
+      "name": "Collect Commit Evidence For Diffed Doc Paths",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-evidence"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Fact-gathering only: for each diffed=true path, enumerate up to 20 commits since baseline (sha, date, subject, --stat). No diff body, no relevance judgment. Verdict authority remains with the terminal consider step.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.doc-evidence"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "doc_evidence"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.precheck-kind-read"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-evidence"
+        }
+      }
+    },
+    "closure.consider.precheck-kind-read": {
+      "stepId": "closure.consider.precheck-kind-read",
+      "name": "Precheck - Read Kind At Triage Artifact",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "precheck-kind-read"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt (audit-only). Missing/invalid → kind_at_triage:null and emit next; never repeats. The live kind:* label is authoritative; kind_at_triage is not propagated downstream.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.precheck-kind-read"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "doc_evidence"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.precheck-kind-scope"
+        }
+      }
+    },
+    "closure.consider.precheck-kind-scope": {
+      "stepId": "closure.consider.precheck-kind-scope",
+      "name": "Precheck - Record Kind Boundary Scope Findings",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "precheck-kind-scope"
+      },
+      "uvVariables": [],
+      "usesStdin": false,
+      "description": "Record considerer's source-edit boundary findings in kind_boundary_violations (source files *.ts/*.js/*.py outside tests/ are violations). Always emits next; verdict authority lives in the terminal consider step. kind_at_triage is audit-only and does not branch behavior here.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.precheck-kind-scope"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "doc_evidence",
+          "kind_boundary_violations"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "consider"
+        }
+      }
+    },
     "consider": {
       "stepId": "consider",
       "name": "Consider Implementation Request",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -27,24 +236,25 @@
       },
       "structuredGate": {
         "allowedIntents": [
-          "closing",
-          "repeat"
+          "closing"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
+        "failFast": false,
         "handoffFields": [
           "verdict",
           "final_summary",
-          "handoff_anchor"
+          "handoff_anchor",
+          "doc_paths_required",
+          "doc_diff_results",
+          "doc_evidence",
+          "kind_boundary_violations"
         ]
       },
       "transitions": {
         "closing": {
           "target": null
-        },
-        "repeat": {
-          "target": "consider"
         }
       }
     }

@@ -1,0 +1,34 @@
+{
+  "$schema": "../../agents/schemas/agent.schema.json",
+  "version": "1.13.28",
+  "name": "clarifier",
+  "displayName": "Clearance Clarifier Agent",
+  "description": "Reads a single GitHub Issue labeled 'need clearance', applies the 5-gate rubric, posts a verdict comment, and emits a routing verdict so the orchestrator transitions the phase to impl-pending or consider-pending.",
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to clarify",
+      "required": true,
+      "cli": "--issue"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json"
+      }
+    },
+    "verdict": {
+      "type": "count:iteration",
+      "config": {
+        "maxIterations": 2
+      }
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/clarifier",
+      "format": "jsonl",
+      "maxFiles": 100
+    }
+  }
+}

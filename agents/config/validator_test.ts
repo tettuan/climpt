@@ -24,7 +24,6 @@ function minimalDefinitionWithParams(
     displayName: "Test Agent",
     runner: {
       verdict: { type: "count:iteration", config: { maxIterations: 3 } },
-      boundaries: { permissionMode: "default", allowedTools: ["Read"] },
     },
     parameters,
   };

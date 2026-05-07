@@ -13,13 +13,14 @@
 # ============================================================
 # failurePatterns.{name}
 #   ^ referenced by validators.{name}.failurePattern
-#     ^ referenced by validationSteps.{name}.validationConditions[].validator
+#     ^ referenced by validationSteps.{name}.postLLMConditions[].validator
+#       (or .preflightConditions[].validator for pre-LLM predicates)
 #       ^ triggered during closure validation
 #
 # Example trace:
 #   failurePatterns.git-dirty
 #     ^ validators.git-clean.failurePattern = "git-dirty"
-#       ^ validationSteps.closure.issue.validationConditions[0].validator = "git-clean"
+#       ^ validationSteps.closure.issue.postLLMConditions[0].validator = "git-clean"
 #         ^ triggered when closure.issue step runs validation
 #
 # The chain flows bottom-up at runtime:
@@ -233,6 +234,10 @@ failurePatterns:
 #
 # Validator fields:
 #   type           : (required) "command" — currently the only type
+#   phase          : (required) "preflight" | "postllm"
+#                    Must match the slot this validator is wired
+#                    into (preflightConditions or postLLMConditions).
+#                    See validator-catalog.md for R-V1..R-V5.
 #   command        : (required) Shell command to execute
 #   successWhen    : (required) Success condition:
 #                      "empty"      — stdout is empty
@@ -260,6 +265,7 @@ failurePatterns:
 validators:
   git-clean:
     type: "command"
+    phase: "postllm"
     command: "git status --porcelain"
     successWhen: "empty"
     # Success when stdout is empty (no uncommitted changes)
@@ -270,6 +276,7 @@ validators:
 
   tests-pass:
     type: "command"
+    phase: "postllm"
     command: "deno task test"
     successWhen: "exitCode:0"
     # Success when deno test exits with code 0
@@ -280,6 +287,7 @@ validators:
 
   type-check:
     type: "command"
+    phase: "postllm"
     command: "deno check src/**/*.ts agents/**/*.ts *.ts"
     successWhen: "exitCode:0"
     failurePattern: "type-error"
@@ -289,6 +297,7 @@ validators:
 
   lint-check:
     type: "command"
+    phase: "postllm"
     command: "deno task lint"
     successWhen: "exitCode:0"
     failurePattern: "lint-error"
@@ -298,6 +307,7 @@ validators:
 
   format-check:
     type: "command"
+    phase: "postllm"
     command: "deno fmt --check"
     successWhen: "exitCode:0"
     failurePattern: "format-error"
@@ -307,6 +317,7 @@ validators:
 
   branch-pushed:
     type: "command"
+    phase: "postllm"
     command: "git rev-parse --abbrev-ref --symbolic-full-name @{u}"
     successWhen: "exitCode:0"
     failurePattern: "branch-not-pushed"
@@ -316,6 +327,7 @@ validators:
 
   branch-merged:
     type: "command"
+    phase: "postllm"
     command: "git log origin/develop..HEAD --oneline"
     successWhen: "empty"
     # Success when empty (no commits ahead of origin/develop)
@@ -329,38 +341,51 @@ validators:
 # validationSteps
 # ============================================================
 # Description : Step definitions for closure validation.
-#               Two-phase validation model:
-#               Phase 1 (Pre-flight State Gate):
-#                 validationConditions are triggered BEFORE
-#                 the closure prompt is sent. All conditions
-#                 must pass for the LLM call to proceed.
-#               Phase 3 (Post-LLM Format Gate):
-#                 outputSchemaRef validation runs AFTER the
-#                 LLM closure call, checking structured output
-#                 against the declared schema.
+#               Two-slot validation model (see validator-catalog.md):
+#               preflightConditions (Pre-flight State Gate):
+#                 Evaluated BEFORE the closure prompt is sent.
+#                 Pure predicates; failure aborts immediately
+#                 (no retry, no LLM). Referenced validators
+#                 MUST declare phase: "preflight".
+#               postLLMConditions (Post-LLM Remediation Gate):
+#                 Evaluated AFTER the LLM closure call. Failure
+#                 may produce a retry prompt via onFailure.
+#                 Referenced validators MUST declare phase:
+#                 "postllm".
+#               Output schema validation runs separately after
+#               the LLM call, checking structured output against
+#               the declared outputSchemaRef.
 # Type        : object (string -> ValidationStep)
 # Required    : no (optional)
 #
 # ValidationStep fields:
-#   stepId               : (required) Validation step identifier
-#   name                 : (required) Human-readable name
-#   c2                   : (required) C3L Category
-#   c3                   : (required) C3L Classification
-#   validationConditions : (optional) Array of conditions
-#   onFailure            : (optional) Action when validation fails
-#   outputSchemaRef      : (optional) Reference to output schema
-#   description          : (optional) Step description
+#   stepId              : (required) Validation step identifier
+#   name                : (required) Human-readable name
+#   c2                  : (required) C3L Category
+#   c3                  : (required) C3L Classification
+#   preflightConditions : (required) Array of pre-LLM conditions
+#                         (may be empty [])
+#   postLLMConditions   : (required) Array of post-LLM conditions
+#                         (may be empty [])
+#   onFailure           : (optional) Action when postLLMConditions
+#                         fail. Does not apply to preflightConditions
+#                         (always abort).
+#   outputSchemaRef     : (optional) Reference to output schema
+#   description         : (optional) Step description
 #
 # ValidationCondition:
 #   validator : (required) Name of a validator in the
-#               "validators" section above
+#               "validators" section above. Its phase must match
+#               the slot (R-C7).
 #
 # FailureAction:
-#   action      : (required) "retry" | "abort" | "skip"
+#   action      : (required) "retry" | "skip"
 #     "retry" — Re-run the pre-closure work step
-#     "abort" — Stop execution with an error
 #     "skip"  — Skip validation and proceed to closure
 #   maxAttempts : (optional) Max retry attempts (for "retry")
+#   Note: unrecoverable failure or maxAttempts exhaustion is thrown as
+#   ExecutionError (AgentValidationAbortError) per design 16 §C —
+#   not a configurable action value.
 # ============================================================
 validationSteps:
 
@@ -370,9 +395,12 @@ validationSteps:
     name: "Issue Validation"
     c2: "retry"
     c3: "issue"
-    validationConditions:
-      # Each condition references a named validator.
-      # All conditions must pass for validation to succeed.
+    preflightConditions: []
+    # No pre-LLM predicates for this step.
+    postLLMConditions:
+      # Each condition references a named validator whose
+      # phase is "postllm". All conditions must pass for
+      # validation to succeed.
       - validator: "git-clean"
         # Ensures no uncommitted changes before closing
       - validator: "type-check"
@@ -397,7 +425,8 @@ validationSteps:
     name: "External State Validation"
     c2: "retry"
     c3: "issue"
-    validationConditions:
+    preflightConditions: []
+    postLLMConditions:
       - validator: "git-clean"
       - validator: "type-check"
     onFailure:
@@ -574,16 +603,17 @@ steps:
       # Description : Valid intents this step can emit.
       # Type        : array of strings
       # Options     : "next" | "repeat" | "jump" | "closing"
-      #               | "abort" | "escalate" | "handoff"
+      #               | "escalate" | "handoff"
       # Required    : yes
-      # Intent semantics:
+      # Intent semantics (frozen 6-value ADT, design 14 §E):
       #   next     — Proceed to the next step in the flow
       #   repeat   — Re-execute the current step
       #   jump     — Go to a specific step (needs targetField)
-      #   closing  — Terminal; end execution
-      #   abort    — Stop with error
+      #   closing  — Terminal; end execution (closure step only)
       #   escalate — Escalate to parent/human (verification)
       #   handoff  — Transfer to a different step with data
+      # Note: run-time fatal failure is thrown as ExecutionError
+      # (AgentValidationAbortError) per design 16 §C, not an Intent value.
       # stepKind constraints:
       #   work         — next, repeat, jump, handoff
       #   verification — next, repeat, jump, escalate
@@ -719,7 +749,7 @@ steps:
     # Type        : string
     # Options     : "plan" | "acceptEdits" | "bypassPermissions"
     # Default     : none (uses stepKind default or agent-level setting)
-    # Resolution  : step.permissionMode > stepKind default > boundaries.permissionMode
+    # Resolution  : step.permissionMode > stepKind default > permissions.defaultMode (from .agent/climpt/config/claude.settings.climpt.agents.*.json)
     # Why         : Control tool permissions per step. For example,
     #               set "plan" on an architect step to restrict it
     #               to read-only exploration, while allowing "acceptEdits"

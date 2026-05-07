@@ -31,6 +31,7 @@ export type { SdkErrorCategoryType } from "../shared/errors/runner-errors.ts";
 
 // Flow errors
 export {
+  AgentAdaptationChainExhaustedError,
   AgentSchemaResolutionError,
   AgentStepIdMismatchError,
   AgentStepRoutingError,

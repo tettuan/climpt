@@ -9,14 +9,21 @@
 import type {
   BatchOptions,
   BatchResult,
-  IssueCriteria,
+  IssueSource,
   OrchestratorOptions,
   OrchestratorResult,
   WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
-import type { AgentDispatcher } from "./dispatcher.ts";
+import type { AgentDispatcher, DispatchOutcome } from "./dispatcher.ts";
 import type { ArtifactEmitter } from "./artifact-emitter.ts";
+import type { AgentRegistry } from "../boot/types.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { DirectCloseChannel } from "../channels/direct-close.ts";
+import type { OutboxClosePostChannel } from "../channels/outbox-close-post.ts";
+import type { OutboxClosePreChannel } from "../channels/outbox-close-pre.ts";
+import type { TransitionComputedEvent } from "../events/types.ts";
+import { isExecutionError } from "../shared/errors/base.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import {
   resolveAgent,
@@ -28,21 +35,37 @@ import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 import type { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
+import { DeferredItemsEmitter } from "./deferred-items-emitter.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
-import { TransactionScope } from "./transaction-scope.ts";
 import { summarizeSync, syncLabels } from "./label-sync.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
 /**
- * Idempotency marker for T6 compensation comments. Both producer
- * (rollback emits the comment) and consumer (pre-post dedup check via
- * `getRecentComments`) must route through this factory so the string
- * has a single source of truth. Used as idempotencyKey in the
- * CompensationRegistry as well.
+ * Legacy idempotency marker — `(subjectId, cycleSeq)` shape.
+ *
+ * @deprecated PR4-2b — the W13 close cutover replaced this with a
+ * `(subjectId, runId)`-keyed marker living in
+ * `agents/channels/compensation-marker.ts`. The new
+ * {@link CompensationCommentChannel} is the single source of truth for
+ * compensation comment posting; the orchestrator no longer registers a
+ * pre-close compensation entry. This export remains for one PR so that
+ * `orchestrator_test.ts` import statements compile until the test files
+ * are migrated; PR4-3 deletes it.
  */
+/**
+ * Maximum number of rate-limit-driven re-dispatches a single
+ * `Orchestrator.runOne` invocation may absorb. Each re-dispatch waits
+ * until the next reset window, so a permanently throttled account cannot
+ * pin an orchestrator run indefinitely. Exported so tests can derive
+ * expected dispatch counts from the same constant the orchestrator
+ * enforces.
+ */
+export const MAX_RATE_LIMIT_WAITS_PER_RUN = 2;
+
 export const compensationMarker = (
   subjectId: string | number,
   cycleSeq: number,
@@ -54,19 +77,118 @@ export class Orchestrator {
   #dispatcher: AgentDispatcher;
   #cwd: string;
   #artifactEmitter?: ArtifactEmitter;
+  #agentRegistry?: AgentRegistry;
+  #bus?: CloseEventBus;
+  #runId?: string;
+  /**
+   * `DirectCloseChannel` instance from `BootArtifacts.directClose`
+   * (PR4-2b). When present, the orchestrator publishes
+   * `TransitionComputed` and then synchronously calls
+   * `directClose.handleTransition(event)` so the channel decides+executes
+   * the close write through the frozen `CloseTransport`.
+   *
+   * When absent (legacy test fixtures that construct the orchestrator
+   * without booting), the orchestrator does NOT close issues on its
+   * own. The legacy procedural close path is gone (W13 acceptance,
+   * PR4-2b) — there is no fallback `github.closeIssue` call site here.
+   * Tests that need close behaviour must construct the orchestrator
+   * with a {@link DirectCloseChannel} (typically via
+   * `BootKernel.boot`).
+   */
+  #directClose?: DirectCloseChannel;
+  /**
+   * `OutboxClosePreChannel` reference from `BootArtifacts.outboxClosePre`
+   * (PR4-3). Threaded into the `OutboxProcessor` so close-issue
+   * OutboxActions go through the channel's `handleCloseAction`
+   * (CloseTransport.close + IssueClosed/Failed publish) rather than
+   * the direct `github.closeIssue` call site that was deleted in
+   * T4.4b. Optional for legacy fixtures that bypass `BootKernel.boot`.
+   */
+  #outboxClosePre?: OutboxClosePreChannel;
+  /**
+   * `OutboxClosePostChannel` reference from
+   * `BootArtifacts.outboxClosePost` (PR4-3). Drives the post-close
+   * outbox drain (comments, label updates, project removals) after a
+   * successful close. Replaces the inline `processPostClose` call site
+   * that lived in `#runInner` until T4.4b.
+   */
+  #outboxClosePost?: OutboxClosePostChannel;
+  /**
+   * `MergeCloseAdapter` reference from `BootArtifacts.mergeCloseAdapter`
+   * (PR4-4 T4.5). At every `run()` finally-boundary the orchestrator
+   * calls `mergeCloseAdapter.drain()` so any merge-close-fact
+   * accumulated by a `merge-pr` subprocess during this run lands on
+   * the bus as `IssueClosedEvent({ channel: "M" })` before the run
+   * returns — preserving the R5 hard gate that close events surface
+   * uniformly across all 6 channels regardless of mode (11 §C step 5).
+   *
+   * Optional because legacy fixtures that bypass `BootKernel.boot`
+   * (StubDispatcher tests) do not construct an adapter; in that case
+   * the drain step is skipped.
+   */
+  #mergeCloseAdapter?:
+    import("../channels/merge-close-adapter.ts").MergeCloseAdapter;
 
+  /**
+   * Construct an `Orchestrator`.
+   *
+   * @param config          Frozen WorkflowConfig (Layer 4, design 20 §B).
+   * @param github          GitHub client.
+   * @param dispatcher      Pre-constructed dispatcher. The orchestrator
+   *                        does NOT construct one itself, so the caller
+   *                        chooses between {@link RunnerDispatcher}
+   *                        (which already holds the frozen
+   *                        {@link AgentRegistry}) and
+   *                        {@link StubDispatcher} (tests).
+   * @param cwd             Working directory; defaults to `Deno.cwd()`.
+   * @param artifactEmitter Optional emitter for handoff artifacts.
+   * @param agentRegistry   Frozen `AgentRegistry` from
+   *                        `BootArtifacts.agentRegistry` (T2.3). Threaded
+   *                        through to {@link BatchRunner} so a sub-batch
+   *                        path keeps the same Layer-4 reference.
+   *                        Optional in T2.3 because StubDispatcher tests
+   *                        do not need a registry; T2.4 wires this from
+   *                        entry points.
+   * @param bus             T3.3 (shadow mode): frozen `CloseEventBus`
+   *                        from `BootArtifacts.bus`. The orchestrator
+   *                        publishes `dispatchPlanned` /
+   *                        `dispatchCompleted` / `transitionComputed` /
+   *                        `issueClosed`(channel "D") /
+   *                        `issueCloseFailed`(channel "D") /
+   *                        `siblingsAllClosed` for each cycle. Optional
+   *                        — every existing test fixture (StubDispatcher
+   *                        based) constructs without a bus, in which
+   *                        case the publish calls short-circuit.
+   * @param runId           Stable boot correlation id; paired with
+   *                        {@link bus}.
+   */
   constructor(
     config: WorkflowConfig,
     github: GitHubClient,
     dispatcher: AgentDispatcher,
     cwd?: string,
     artifactEmitter?: ArtifactEmitter,
+    agentRegistry?: AgentRegistry,
+    bus?: CloseEventBus,
+    runId?: string,
+    directClose?: DirectCloseChannel,
+    outboxClosePre?: OutboxClosePreChannel,
+    outboxClosePost?: OutboxClosePostChannel,
+    mergeCloseAdapter?:
+      import("../channels/merge-close-adapter.ts").MergeCloseAdapter,
   ) {
     this.#config = config;
     this.#github = github;
     this.#dispatcher = dispatcher;
     this.#cwd = cwd ?? Deno.cwd();
     this.#artifactEmitter = artifactEmitter;
+    this.#agentRegistry = agentRegistry;
+    this.#bus = bus;
+    this.#runId = runId;
+    this.#directClose = directClose;
+    this.#outboxClosePre = outboxClosePre;
+    this.#outboxClosePost = outboxClosePost;
+    this.#mergeCloseAdapter = mergeCloseAdapter;
   }
 
   /** Derive a stable workflow identity from config for state file isolation. */
@@ -124,9 +246,59 @@ export class Orchestrator {
         log,
       );
     } finally {
+      // PR4-4 T4.5: drain merge-close-facts so any merge-pr subprocess
+      // that completed during this run surfaces its
+      // `IssueClosedEvent({ channel: "M" })` on the bus before the
+      // orchestrator returns. drain() is fail-soft (missing fact file
+      // returns zero published) so the absence of merge-pr in this
+      // run is harmless. Errors from drain do not propagate — the
+      // primary run result stays authoritative.
+      if (this.#mergeCloseAdapter !== undefined) {
+        try {
+          await this.#mergeCloseAdapter.drain();
+        } catch (cause) {
+          const msg = cause instanceof Error ? cause.message : String(cause);
+          await log.warn(
+            `MergeCloseAdapter.drain failed: ${msg}`,
+            { event: "merge_close_drain_failed", error: msg },
+          );
+        }
+      }
       issueLock?.release();
       if (ownsLogger) await log.close();
     }
+  }
+
+  /**
+   * Single-shot dispatch entry point (T5.3, R2b cutover).
+   *
+   * Wraps `run(item.subjectId, ...)` with the `SubjectQueueItem.source`
+   * forwarded into `OrchestratorOptions.dispatchSource` so the
+   * `dispatchPlanned` event payload reflects the picker mode (design
+   * 11 §B / 30 §B). Callers (e.g. `run-agent.ts` after the R2b cutover
+   * or any other consumer holding a `SubjectPicker`) call `pick()` once
+   * and pass the resulting length-1 / length-N item through here so the
+   * close path is structurally identical to workflow mode (R5 hard
+   * gate, 11 §C).
+   *
+   * The method does NOT short-circuit any of `run()`'s steps —
+   * preflight label sync, lock acquisition, mergeCloseAdapter drain are
+   * all unchanged. The only difference is `dispatchSource` defaults to
+   * `item.source` so events surface the argv-lifted vs IssueSyncer
+   * provenance.
+   */
+  runOne(
+    item: import("./subject-picker.ts").SubjectQueueItem,
+    options?: OrchestratorOptions,
+    store?: SubjectStore,
+    logger?: OrchestratorLogger,
+  ): Promise<OrchestratorResult> {
+    return this.run(
+      item.subjectId,
+      { ...options, dispatchSource: options?.dispatchSource ?? item.source },
+      store,
+      logger,
+    );
   }
 
   async #runInner(
@@ -141,11 +313,15 @@ export class Orchestrator {
     const maxConsecutivePhases = this.#config.rules.maxConsecutivePhases ?? 0;
     const wfId = workflowId ?? this.workflowId;
 
+    const origin = detectRuntimeOrigin(import.meta.url);
     await log.info(`Run start subject #${subjectId}`, {
       event: "run_start",
       subjectId,
       workflowId: wfId,
       dryRun,
+      climptVersion: origin.version,
+      climptSource: origin.source,
+      climptModuleUrl: origin.moduleUrl,
     });
 
     // Restore cycle tracker from persisted state if available.
@@ -156,8 +332,13 @@ export class Orchestrator {
     // lag behind the live labels. Treat that divergence as explicit retry
     // intent and drop the cycle history so `maxCycles` doesn't block the
     // new run. This is a one-way regression detection — label state wins.
+    //
+    // Synthesized (argv-lift) mode is single-shot by design (design 11 §B
+    // "queue 長 1、cycle 1 回"). It does not consult or persist
+    // workflow-state — every `--agent <id> --issue N` invocation is a
+    // fresh single-cycle run. Persistence is workflow-mode semantics.
     let tracker: CycleTracker;
-    if (store) {
+    if (store && !this.#config.synthesized) {
       const existingState = await store.readWorkflowState(subjectId, wfId);
       if (existingState) {
         const livePhaseId = await this.#resolveLivePhaseId(
@@ -203,6 +384,14 @@ export class Orchestrator {
     let finalPhase = "unknown";
     let status: OrchestratorResult["status"] = "blocked";
     let issueClosed = false;
+
+    // Reactive rate-limit retries do not consume the `maxCycles` budget
+    // (the failed cycle is rolled back via `continue` before
+    // `tracker.record` runs). The exported `MAX_RATE_LIMIT_WAITS_PER_RUN`
+    // caps how many reset-window waits a single `runOne` invocation may
+    // absorb so a permanently throttled account cannot pin an
+    // orchestrator run indefinitely.
+    let rateLimitWaitsThisRunOne = 0;
 
     // Each cycle depends on the previous: labels are read, agent dispatched,
     // labels updated, then re-read. Awaits must be sequential.
@@ -261,7 +450,22 @@ export class Orchestrator {
         break;
       }
 
-      const resolved = resolvePhase(currentLabels, this.#config);
+      // argv-lift mode (design 11 §B): synthesised workflows have
+      // exactly one actionable phase, fixed at boot from `--agent`.
+      // Phase resolution does not consult issue labels — the mode
+      // differs from run-workflow only in input source, not in
+      // label-gate semantics.
+      let resolved: ReturnType<typeof resolvePhase>;
+      if (this.#config.synthesized) {
+        const actionable = Object.entries(this.#config.phases).find(
+          ([, p]) => p.type === "actionable",
+        );
+        resolved = actionable
+          ? { phaseId: actionable[0], phase: actionable[1] }
+          : null;
+      } else {
+        resolved = resolvePhase(currentLabels, this.#config);
+      }
       if (resolved === null) {
         finalPhase = "unknown";
         status = "blocked";
@@ -355,23 +559,102 @@ export class Orchestrator {
       // Step 7: Dispatch agent
       // Load any previously-persisted workflow payload so the agent can
       // observe prior handoff outputs via issuePayload / runnerArgs.
+      // Standalone mode (T5.3 R2b cutover) has no store but the entry
+      // point already projected argv → `options.initialPayload`; use it
+      // when the store-backed lookup is absent or returns nothing.
       let payload;
       if (store) {
         // deno-lint-ignore no-await-in-loop
         payload = await store.readWorkflowPayload(subjectId, wfId);
       }
+      if (payload === undefined && options?.initialPayload !== undefined) {
+        payload = options.initialPayload;
+      }
 
-      // deno-lint-ignore no-await-in-loop
-      const dispatchResult = await this.#dispatcher.dispatch(
-        agentId,
+      // T3.3 + T5.3: publish DispatchPlanned just before the dispatcher
+      // runs. The `source` field discriminates the picker mode (design
+      // 11 §B / 30 §B):
+      //   - "workflow" — fed by IssueSyncer (BatchRunner / single-issue
+      //     `--issue` invoked through `Orchestrator.run`).
+      //   - "argv"     — argv-lifted SubjectQueue (run-agent standalone
+      //     via `Orchestrator.runOne`, T5.3 R2b cutover).
+      // Defaults to "workflow" so legacy callers keep their event shape.
+      this.#bus?.publish({
+        kind: "dispatchPlanned",
+        publishedAt: Date.now(),
+        runId: this.#runId ?? "",
         subjectId,
-        {
-          verbose: options?.verbose ?? false,
-          issueStorePath: store?.storePath,
-          outboxPath: store?.getOutboxPath(subjectId),
-          payload,
-        },
-      );
+        agentId,
+        phase: phaseId,
+        source: options?.dispatchSource ?? "workflow",
+      });
+
+      let dispatchResult: DispatchOutcome;
+      try {
+        // deno-lint-ignore no-await-in-loop
+        dispatchResult = await this.#dispatcher.dispatch(
+          agentId,
+          subjectId,
+          {
+            verbose: options?.verbose ?? false,
+            issueStorePath: store?.storePath,
+            outboxPath: store?.getOutboxPath(subjectId),
+            payload,
+          },
+        );
+      } catch (error) {
+        // ExecutionError-class only (design 16 §C lines 173-184). The
+        // marker interface tag (`ExecutionErrorMarker.executionFailure`)
+        // discriminates Run-time SO/Verdict failures from
+        // ConfigurationError (Boot-time reject — must NOT reach here),
+        // ConnectionError (Transport-owned), and arbitrary throws (which
+        // escape so BatchRunner records `skipped[]` with a stack trace).
+        // Adding a new ExecutionError class only requires tagging it;
+        // this catch needs no edit.
+        if (isExecutionError(error)) {
+          this.#bus?.publish({
+            kind: "issueCloseFailed",
+            publishedAt: Date.now(),
+            runId: this.#runId ?? "",
+            subjectId,
+            channel: "D",
+            reason: error.code,
+          });
+          // deno-lint-ignore no-await-in-loop
+          await log.error(
+            `Dispatcher threw ExecutionError for subject ` +
+              `#${subjectId} (agent="${agentId}", code="${error.code}"): ` +
+              `${error.message}`,
+            {
+              event: "dispatch_execution_error",
+              subjectId,
+              agent: agentId,
+              code: error.code,
+              message: error.message,
+            },
+          );
+          status = "blocked";
+          finalPhase = phaseId;
+          break;
+        }
+        throw error;
+      }
+
+      // T3.3 (shadow mode): publish DispatchCompleted on the success
+      // path. Non-recoverable ClimptError throws from `dispatch` are
+      // intercepted above and surfaced as `IssueCloseFailedEvent`; other
+      // exceptions escape the cycle. T4 channels can subscribe and
+      // reason about successful dispatches without inspecting the error
+      // path.
+      this.#bus?.publish({
+        kind: "dispatchCompleted",
+        publishedAt: Date.now(),
+        runId: this.#runId ?? "",
+        subjectId,
+        agentId,
+        phase: phaseId,
+        outcome: dispatchResult.outcome,
+      });
 
       // deno-lint-ignore no-await-in-loop
       await log.info(
@@ -435,9 +718,150 @@ export class Orchestrator {
         }
       }
 
+      // Step 7a.5: Expand agent-declared `deferred_items[]` into outbox
+      // `create-issue` actions, so the follow-up issues are filed before
+      // the current issue closes in T6. See issue #480.
+      // Idempotency: already-confirmed items are skipped (issue #484).
+      //
+      // C2 guard (issue #485): deferred_items are emitted ONLY when the
+      // issue will close in this cycle (closeIntent === true). Emitting on
+      // non-close paths (e.g. verdict:"blocked") causes duplicate creation
+      // when the issue is re-dispatched after blocker resolution, even with
+      // C1 idempotency keys — the structuredOutput may differ between
+      // cycles, producing distinct keys for semantically identical items.
+      const { targetPhase: earlyTargetPhase } = computeTransition(
+        agent,
+        dispatchResult.outcome,
+      );
+      const earlyIsTerminal =
+        this.#config.phases[earlyTargetPhase]?.type === "terminal";
+      // closeBinding-driven close intent (design 13 §F):
+      // - primary.kind === "direct" enables close on terminal-bound transitions
+      // - primary.kind === "none" disables close
+      // - condition (when set) gates close on outcome equality
+      const closeBinding = agent.closeBinding;
+      const wantsClose = closeBinding?.primary.kind === "direct";
+      const conditionMatch = closeBinding?.condition === undefined ||
+        closeBinding.condition === dispatchResult.outcome;
+      const closeIntentForDeferred = !dryRun && earlyIsTerminal &&
+        wantsClose && conditionMatch;
+
+      const deferredEmitter = store
+        ? new DeferredItemsEmitter(store)
+        : undefined;
+      let deferredEmittedKeys: readonly string[] = [];
+      let deferredEmittedPaths: readonly string[] = [];
+      if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        closeIntentForDeferred
+      ) {
+        // Hook O2: Project inheritance for deferred child issues (§2.4 / §6.3)
+        // When projectBinding.inheritProjectsForCreateIssue is enabled,
+        // resolve parent project memberships and pass them to the emitter
+        // so child issues inherit the parent's projects.
+        // On failure, skip silently and emit without project context.
+        let parentProjects:
+          | readonly { owner: string; number: number }[]
+          | undefined;
+        if (this.#config.projectBinding?.inheritProjectsForCreateIssue) {
+          try {
+            // deno-lint-ignore no-await-in-loop
+            parentProjects = await this.#github.getIssueProjects(
+              Number(subjectId),
+            );
+            if (parentProjects.length > 0) {
+              // deno-lint-ignore no-await-in-loop
+              await log.info(
+                `O2: Parent projects resolved for #${subjectId}: ${
+                  parentProjects.map((p) => `${p.owner}/${p.number}`).join(
+                    ", ",
+                  )
+                }`,
+                {
+                  event: "o2_parent_projects_resolved",
+                  subjectId,
+                  projects: parentProjects.map((p) => `${p.owner}/${p.number}`),
+                },
+              );
+            }
+          } catch (o2Error) {
+            const o2Msg = o2Error instanceof Error
+              ? o2Error.message
+              : String(o2Error);
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `O2: Project inheritance skipped for #${subjectId}: ${o2Msg}`,
+              {
+                event: "o2_project_inheritance_skipped",
+                subjectId,
+              },
+            );
+            // Continue emission without parent projects (§6.3).
+          }
+        }
+
+        try {
+          // deno-lint-ignore no-await-in-loop
+          const deferredResult = await deferredEmitter.emit(
+            subjectId,
+            dispatchResult.structuredOutput,
+            parentProjects,
+          );
+          deferredEmittedKeys = deferredResult.emittedKeys;
+          deferredEmittedPaths = deferredResult.paths;
+          if (deferredResult.count > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Deferred items emitted: ${deferredResult.count} create-issue actions queued`,
+              {
+                event: "deferred_items_emitted",
+                subjectId,
+                count: deferredResult.count,
+              },
+            );
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          // deno-lint-ignore no-await-in-loop
+          await log.error(
+            `Deferred items emission failed: ${msg}`,
+            {
+              event: "deferred_items_error",
+              subjectId,
+              error: msg,
+            },
+          );
+          throw error;
+        }
+      } else if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        !closeIntentForDeferred
+      ) {
+        // C2: log suppression so operator can trace the guard in action.
+        // deno-lint-ignore no-await-in-loop
+        await log.info(
+          `Deferred items skipped: issue will not close this cycle ` +
+            `(outcome="${dispatchResult.outcome}", ` +
+            `targetPhase="${earlyTargetPhase}")`,
+          {
+            event: "deferred_items_skipped",
+            subjectId,
+            outcome: dispatchResult.outcome,
+            targetPhase: earlyTargetPhase,
+            reason: "close_intent_false",
+          },
+        );
+      }
+
       // Step 7b: Process outbox after agent dispatch (when store available)
       if (store) {
-        const outboxProcessor = new OutboxProcessor(this.#github, store);
+        const outboxProcessor = new OutboxProcessor(
+          this.#github,
+          store,
+          this.#bus,
+          this.#runId,
+          this.#outboxClosePre,
+        );
         // deno-lint-ignore no-await-in-loop
         const outboxResults = await outboxProcessor.process(subjectId);
 
@@ -482,20 +906,104 @@ export class Orchestrator {
               },
             );
           }
+
+          // Step 7b.1: Confirm deferred-item idempotency keys for
+          // individually succeeded items. Previously all-or-nothing: keys
+          // were persisted only when every outbox action succeeded, causing
+          // the emitter to re-emit succeeded items on the next cycle after
+          // partial failure. Now confirms per-succeeded-item so the emitter
+          // skips them. See issues #484, #486.
+          if (
+            deferredEmitter && deferredEmittedKeys.length > 0 &&
+            deferredEmittedPaths.length === deferredEmittedKeys.length
+          ) {
+            // Build filename→key map from emitter paths.
+            const filenameToKey = new Map<string, string>();
+            for (let i = 0; i < deferredEmittedPaths.length; i++) {
+              const path = deferredEmittedPaths[i];
+              const slash = path.lastIndexOf("/");
+              const basename = slash >= 0 ? path.slice(slash + 1) : path;
+              filenameToKey.set(basename, deferredEmittedKeys[i]);
+            }
+            const succeededKeys: string[] = [];
+            for (const result of succeeded) {
+              const key = filenameToKey.get(result.filename);
+              if (key !== undefined) {
+                succeededKeys.push(key);
+              }
+            }
+            if (succeededKeys.length > 0) {
+              // deno-lint-ignore no-await-in-loop
+              await deferredEmitter.confirmEmitted(
+                subjectId,
+                succeededKeys,
+              );
+            }
+          }
         }
       }
 
       // Step 7c: Rate limit throttle check
+      let rateLimitThrottled = false;
       if (dispatchResult.rateLimitInfo) {
         const rateLimiter = new RateLimiter(
           this.#config.rules.rateLimitThreshold ?? 0.95,
           this.#config.rules.rateLimitPollIntervalMs ?? 300_000,
         );
         // deno-lint-ignore no-await-in-loop
-        await rateLimiter.checkAndThrottle(
+        rateLimitThrottled = await rateLimiter.checkAndThrottle(
           dispatchResult.rateLimitInfo,
           log,
         );
+      }
+
+      // Step 7c.1: Reactive rate-limit retry. When the dispatch produced
+      // the canonical "failed" outcome (resolveOutcome's mapping for
+      // `result.success === false` on a transformer — the only path
+      // AgentRateLimitError can take to the orchestrator without
+      // throwing through dispatch) *and* the throttle hook actually
+      // waited for a reset, treat the dispatch as a transient API
+      // outage rather than a phase-failing outcome. Skip Steps 8–13
+      // (transition, label change, tracker.record, cycle countdown)
+      // and re-enter the loop so the next iteration re-dispatches the
+      // same phase. Bounded by MAX_RATE_LIMIT_WAITS_PER_RUN to prevent
+      // an indefinite hold on permanently throttled accounts.
+      if (rateLimitThrottled && dispatchResult.outcome === "failed") {
+        rateLimitWaitsThisRunOne++;
+        if (rateLimitWaitsThisRunOne > MAX_RATE_LIMIT_WAITS_PER_RUN) {
+          // deno-lint-ignore no-await-in-loop
+          await log.warn(
+            `Rate-limit retry budget exhausted (${rateLimitWaitsThisRunOne}/${MAX_RATE_LIMIT_WAITS_PER_RUN}); ` +
+              `aborting run for subject #${subjectId}`,
+            {
+              event: "rate_limit_budget_exhausted",
+              subjectId,
+              agent: agentId,
+              attempts: rateLimitWaitsThisRunOne,
+              max: MAX_RATE_LIMIT_WAITS_PER_RUN,
+            },
+          );
+          status = "blocked";
+          break;
+        }
+        // deno-lint-ignore no-await-in-loop
+        await log.warn(
+          `Rate-limit driven failure for agent "${agentId}" on subject ` +
+            `#${subjectId}; skipping transition and re-dispatching ` +
+            `(attempt ${rateLimitWaitsThisRunOne}/${MAX_RATE_LIMIT_WAITS_PER_RUN})`,
+          {
+            event: "rate_limit_failure_throttle",
+            subjectId,
+            agent: agentId,
+            phase: phaseId,
+            outcome: dispatchResult.outcome,
+            attempt: rateLimitWaitsThisRunOne,
+            max: MAX_RATE_LIMIT_WAITS_PER_RUN,
+            resetsAt: dispatchResult.rateLimitInfo?.resetsAt,
+            rateLimitType: dispatchResult.rateLimitInfo?.rateLimitType,
+          },
+        );
+        continue;
       }
 
       // Step 8: Compute transition
@@ -503,6 +1011,38 @@ export class Orchestrator {
         agent,
         dispatchResult.outcome,
       );
+
+      // PR4-2b: enrich the TransitionComputed snapshot with the inputs
+      // DirectClose.decide needs (closeBinding, outcomeMatch,
+      // isTerminal, agentId). The publisher does the pre-computation
+      // because the channel's `decide` is required to be pure
+      // (channels/types.ts §1; Critique F5).
+      const targetPhaseDef = this.#config.phases[targetPhase];
+      const isTerminal = targetPhaseDef?.type === "terminal";
+      const isBlocking = targetPhaseDef?.type === "blocking";
+      // T6.2: closeBinding is the source-of-truth on disk; the snapshot
+      // is just a defensive copy plus a default for absence.
+      const closeBindingSnapshot:
+        import("../src_common/types/agent-bundle.ts").CloseBinding =
+          agent.closeBinding ??
+            { primary: { kind: "none" }, cascade: false };
+      const outcomeMatch = closeBindingSnapshot.primary.kind === "direct" &&
+        (closeBindingSnapshot.condition === undefined ||
+          closeBindingSnapshot.condition === dispatchResult.outcome);
+      const transitionEvent: TransitionComputedEvent = {
+        kind: "transitionComputed",
+        publishedAt: Date.now(),
+        runId: this.#runId ?? "",
+        subjectId,
+        fromPhase: phaseId,
+        toPhase: targetPhase,
+        outcome: dispatchResult.outcome,
+        closeBinding: closeBindingSnapshot,
+        outcomeMatch,
+        agentId,
+        isTerminal,
+      };
+      this.#bus?.publish(transitionEvent);
 
       // Step 9: Compute label changes
       const { labelsToRemove, labelsToAdd } = computeLabelChanges(
@@ -527,151 +1067,153 @@ export class Orchestrator {
         },
       );
 
-      // Steps 10-12 (T1..T7): phase transition as a saga.
-      // Contract: tmp/transaction-rollback/investigation/design.md §2.2.
-      //   T1  pure plan (already computed above as labelsToRemove/labelsToAdd)
-      //   T2  snapshot preImage = currentLabels
-      //   T3  label add (compensation: remove the just-added labels)
-      //   T4  label remove (compensation: restore preImage labels)
-      //   T5  handoff comment (compensation: restore preImage labels — shares
-      //       idempotency key with T4 so future dedup can collapse both)
-      //   T6  close issue (compensation: post a marker-tagged comment so
-      //       humans can intervene; label preImage restore is optional per
-      //       §3.1 and elided here — next cycle's re-read self-heals labels)
-      //   T7  local persist (store.updateMeta + writeWorkflowState) —
-      //       best-effort, runs only after commit
+      // PR4-2b — close cutover (W13 acceptance).
       //
-      // cycleTracker.record fires only on full T3..T6 success (before commit),
-      // closing a latent bug where S2 failures still recorded a transition.
-      const targetPhaseDef = this.#config.phases[targetPhase];
-      const isTerminal = targetPhaseDef?.type === "terminal";
-      const isBlocking = targetPhaseDef?.type === "blocking";
-      const closeIntent = !dryRun && isTerminal && agent.closeOnComplete &&
-        (agent.closeCondition === undefined ||
-          agent.closeCondition === dispatchResult.outcome);
-
+      // The legacy saga-with-rollback was deleted. The new flow is a
+      // straight-line sequence:
+      //   T3  add-labels   (no compensation)
+      //   T4  remove-labels (no compensation)
+      //   T5  handoff comment (no compensation)
+      //   T6  DirectClose channel (publishes IssueClosed/IssueCloseFailed;
+      //       compensation is comment-only via CompensationCommentChannel)
+      //   T6.post  outbox post-close (kept here pending PR4-3 migration)
+      //   T6.eval  sentinel-cascade detection + evaluator trigger
+      //            (kept here pending PR4-3 migration to CascadeClose)
+      //   T7  local persist (best-effort)
+      //
+      // Why no rollback:
+      //   - W13 (To-Be 41 §D) replaces the LIFO label rollback with a
+      //     comment-only compensation. Labels written before a close
+      //     fail are observable next cycle; the next-cycle re-read
+      //     self-heals divergence.
+      //   - The cycle status no longer flips to "blocked" on close
+      //     failure. Close success/failure is observable only via the
+      //     bus event log (IssueClosedEvent / IssueCloseFailedEvent
+      //     with `channel: "D"`).
       if (!dryRun) {
         const preImage = [...currentLabels];
-        const cycleSeq = tracker.getCount(subjectId) + 1;
-        const restoreLabelsKey = `restore-labels:${subjectId}:${cycleSeq}`;
-        const marker = compensationMarker(subjectId, cycleSeq);
-        const scope = new TransactionScope({ logger: log });
+        let issueCloseAttemptedFailed = false;
 
-        try {
-          // T3: add-labels (idempotent, reversible by removal)
-          if (labelsToAdd.length > 0) {
+        // T3: add-labels
+        if (labelsToAdd.length > 0) {
+          try {
             // deno-lint-ignore no-await-in-loop
-            await scope.step(
-              "add-labels",
-              () => this.#github.updateIssueLabels(subjectId, [], labelsToAdd),
-              () => ({
-                label: "restore-labels",
-                idempotencyKey: restoreLabelsKey,
-                run: () =>
-                  this.#github.updateIssueLabels(
-                    subjectId,
-                    labelsToAdd,
-                    [],
-                  ),
-              }),
-            );
-          }
-
-          // T4: remove-labels (reversing T4 restores preImage, which
-          //     re-adds anything we removed)
-          if (labelsToRemove.length > 0) {
+            await this.#github.updateIssueLabels(subjectId, [], labelsToAdd);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
             // deno-lint-ignore no-await-in-loop
-            await scope.step(
-              "remove-labels",
-              () =>
-                this.#github.updateIssueLabels(
-                  subjectId,
-                  labelsToRemove,
-                  [],
-                ),
-              () => ({
-                label: "restore-labels",
-                idempotencyKey: restoreLabelsKey,
-                run: () =>
-                  this.#github.updateIssueLabels(
-                    subjectId,
-                    [],
-                    labelsToRemove,
-                  ),
-              }),
-            );
-          }
-
-          // T5: handoff comment. Compensation is label-restore (same key
-          //     as T4) — we rely on gh label ops being idempotent rather
-          //     than deduping compensations in TransactionScope.
-          if (this.#config.handoff) {
-            const handoff = new HandoffManager(this.#config.handoff);
-            // deno-lint-ignore no-await-in-loop
-            await scope.step(
-              "handoff-comment",
-              () =>
-                handoff.renderAndPost(
-                  this.#github,
-                  subjectId,
-                  agentId,
-                  dispatchResult.outcome,
-                  { ...dispatchResult.handoffData },
-                ),
-              () => ({
-                label: "restore-labels",
-                idempotencyKey: restoreLabelsKey,
-                run: () =>
-                  this.#github.updateIssueLabels(
-                    subjectId,
-                    labelsToAdd, // undo T3
-                    labelsToRemove, // undo T4
-                  ),
-              }),
-            );
-          }
-
-          // T6: close issue. Compensation posts a marker-tagged comment
-          //     requesting manual intervention; the marker is checked
-          //     against recent comments to make the compensation idempotent
-          //     across retries (design §3.3).
-          //
-          // Pre-register pattern (vs scope.step): TransactionScope.step()
-          // only records a compensation *after* the action resolves, so a
-          // step() whose action throws would never register its own
-          // compensation. T6 is the one step where compensation-on-failure
-          // is the entire contract (design §3.1 row 4), so we register the
-          // compensation *before* the action and rely on commit() clearing
-          // the stack on success / rollback() running it on failure.
-          if (closeIntent) {
-            scope.record({
-              label: "compensation-comment",
-              idempotencyKey: marker,
-              run: async () => {
-                try {
-                  const recent = await this.#github.getRecentComments(
-                    subjectId,
-                    20,
-                  );
-                  if (recent.some((c) => c.body.includes(marker))) {
-                    return;
-                  }
-                } catch {
-                  // Marker lookup is best-effort; proceed to post.
-                }
-                const body = `⚠️ 自動遷移失敗: 手動確認をお願いします\n\n` +
-                  `phase 遷移 (${phaseId} → ${targetPhase}) で issue close ` +
-                  `に失敗しました。\nラベルは元に戻されています。\n\n` +
-                  `---\n<sub>🤖 ${marker}</sub>`;
-                await this.#github.addIssueComment(subjectId, body);
+            await log.warn(
+              `T3 add-labels failed for subject #${subjectId}: ${msg}`,
+              {
+                event: "phase_transition_failed",
+                subjectId,
+                fromPhase: phaseId,
+                toPhase: targetPhase,
+                error: msg,
               },
-            });
+            );
+            status = "blocked";
+            finalPhase = phaseId;
+            break;
+          }
+        }
+
+        // T4: remove-labels
+        if (labelsToRemove.length > 0) {
+          try {
             // deno-lint-ignore no-await-in-loop
-            await this.#github.closeIssue(subjectId);
-            issueClosed = true;
+            await this.#github.updateIssueLabels(
+              subjectId,
+              labelsToRemove,
+              [],
+            );
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `T4 remove-labels failed for subject #${subjectId}: ${msg}`,
+              {
+                event: "phase_transition_failed",
+                subjectId,
+                fromPhase: phaseId,
+                toPhase: targetPhase,
+                error: msg,
+              },
+            );
+            status = "blocked";
+            finalPhase = phaseId;
+            break;
+          }
+        }
+
+        // T5: handoff comment
+        if (this.#config.handoff) {
+          const handoff = new HandoffManager(this.#config.handoff);
+          try {
+            // deno-lint-ignore no-await-in-loop
+            await handoff.renderAndPost(
+              this.#github,
+              subjectId,
+              agentId,
+              dispatchResult.outcome,
+              { ...dispatchResult.handoffData },
+            );
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `T5 handoff comment failed for subject #${subjectId}: ${msg}`,
+              {
+                event: "phase_transition_failed",
+                subjectId,
+                fromPhase: phaseId,
+                toPhase: targetPhase,
+                error: msg,
+              },
+            );
+            status = "blocked";
+            finalPhase = phaseId;
+            break;
+          }
+        }
+
+        // T6: DirectClose channel decides + executes the close write.
+        // The orchestrator does NOT call gh.closeIssue itself anymore.
+        // `handleTransition` returns true iff the channel actually
+        // executed a close (decide → shouldClose → transport.close ok).
+        // Per W13 we still proceed even on close failure: the channel
+        // published IssueCloseFailed → CompensationCommentChannel
+        // posted a marker comment → operator intervenes.
+        if (this.#directClose !== undefined) {
+          try {
+            // deno-lint-ignore no-await-in-loop
+            issueClosed = await this.#directClose.handleTransition(
+              transitionEvent,
+            );
+          } catch (error) {
+            // Close transport threw. The channel already published
+            // IssueCloseFailed; CompensationCommentChannel handled the
+            // comment side. We log and continue — cycle stays
+            // "completed" if the target phase is terminal (W13).
+            issueCloseAttemptedFailed = true;
+            const msg = error instanceof Error ? error.message : String(error);
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `DirectClose execute failed for subject #${subjectId}: ${msg}`,
+              {
+                event: "issue_close_failed",
+                subjectId,
+                fromPhase: phaseId,
+                toPhase: targetPhase,
+                error: msg,
+              },
+            );
+          }
+
+          if (issueClosed) {
             // deno-lint-ignore no-await-in-loop
             await log.info(
-              `Closed subject #${subjectId} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
+              `Closed subject #${subjectId} (closeBinding, outcome="${dispatchResult.outcome}")`,
               {
                 event: "issue_closed",
                 subjectId,
@@ -680,72 +1222,82 @@ export class Orchestrator {
               },
             );
           }
+        }
 
-          // All T3..T6 steps succeeded. Record the cycle *before* commit
-          // so a crash between tracker.record and commit still surfaces
-          // the registered compensations on the next run. (commit()
-          // itself is synchronous in effect, so the window is negligible.)
-          tracker.record(
+        // T6.post: drain post-close outbox via OutboxClose-post channel
+        // (PR4-3 / T4.4b cutover). The orchestrator hands the
+        // per-cycle store to the channel; the channel constructs an
+        // OutboxProcessor bound to the boot bus + runId and drains
+        // actions tagged `trigger: "post-close"`. Replaces the inline
+        // `new OutboxProcessor(...).processPostClose(subjectId)` site.
+        if (issueClosed && store && this.#outboxClosePost) {
+          // deno-lint-ignore no-await-in-loop
+          const postCloseResults = await this.#outboxClosePost.handlePostClose(
             subjectId,
-            phaseId,
-            targetPhase,
-            agentId,
-            dispatchResult.outcome,
+            store,
           );
-
-          // deno-lint-ignore no-await-in-loop
-          await scope.commit();
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          // deno-lint-ignore no-await-in-loop
-          await log.warn(
-            `Phase transition failed for subject #${subjectId}: ${msg}`,
-            {
-              event: "phase_transition_failed",
-              subjectId,
-              fromPhase: phaseId,
-              toPhase: targetPhase,
-              error: msg,
-            },
-          );
-          // deno-lint-ignore no-await-in-loop
-          const report = await scope.rollback(error);
-          if (report.attempted > 0) {
+          if (postCloseResults.length > 0) {
+            const pcSucceeded = postCloseResults.filter((r) => r.success);
+            const pcFailed = postCloseResults.filter((r) => !r.success);
             // deno-lint-ignore no-await-in-loop
-            await log.warn(
-              `Compensation ran for subject #${subjectId}: ` +
-                `${report.succeeded}/${report.attempted} succeeded` +
-                (report.partial ? " (partial)" : ""),
+            await log.info(
+              `Post-close outbox: ${postCloseResults.length} actions ` +
+                `(${pcSucceeded.length} ok, ${pcFailed.length} failed)`,
               {
-                event: "compensation_ran",
+                event: "post_close_outbox_processed",
                 subjectId,
-                attempted: report.attempted,
-                succeeded: report.succeeded,
-                failed: report.failed.map((f) => ({
-                  label: f.label,
-                  idempotencyKey: f.idempotencyKey,
-                  error: f.error.message,
-                })),
-                partial: report.partial,
+                total: postCloseResults.length,
+                succeeded: pcSucceeded.length,
+                failed: pcFailed.length,
               },
             );
-          }
-          status = "blocked";
-          finalPhase = phaseId;
-          break;
-        } finally {
-          // Safety net: if neither commit nor rollback ran (e.g. exception
-          // escaped outside the try), ensure compensations are flushed.
-          if (!scope.isCommitted() && !scope.isRolledBack()) {
-            // deno-lint-ignore no-await-in-loop
-            await scope.rollback(new Error("scope not finalised"));
+            for (const fail of pcFailed) {
+              // deno-lint-ignore no-await-in-loop
+              await log.warn(
+                `Post-close action failed: ${fail.action} (seq ${fail.sequence}): ${fail.error}`,
+                {
+                  event: "post_close_action_failed",
+                  subjectId,
+                  action: fail.action,
+                  sequence: fail.sequence,
+                  error: fail.error,
+                },
+              );
+            }
           }
         }
 
-        // T7: local persist — best-effort. Next cycle re-reads labels from
-        // the source of truth (gh / store meta) so any divergence here is
-        // self-healed (design §3.1 row G5 / T7).
-        if (store) {
+        // T6.eval: sentinel-cascade detection + project completion check.
+        // PR4-3 / T4.4b cutover: migrated to CascadeCloseChannel which
+        // subscribes to `IssueClosedEvent` on the bus. The channel
+        // queries `getIssueProjects` / `listProjectItems` /
+        // `getIssueLabels`, publishes `SiblingsAllClosedEvent` when
+        // every non-sentinel child is done, and applies the eval-label
+        // transition on the sentinel. The orchestrator no longer
+        // queries the project graph itself for completion eval.
+        //
+        // The DirectClose execute path already published
+        // `IssueClosedEvent(channel: "D")` (PR4-2b), so the cascade
+        // subscriber fires automatically. No synchronous orchestrator
+        // call is needed here.
+
+        // Record the cycle now that the forward operations are done.
+        // Close failure (W13: comment-only compensation) does not
+        // suppress the record — labels are committed on disk.
+        tracker.record(
+          subjectId,
+          phaseId,
+          targetPhase,
+          agentId,
+          dispatchResult.outcome,
+        );
+        void issueCloseAttemptedFailed;
+
+        // T7: local persist — best-effort.
+        // Synthesized mode skips persistence (design 11 §B: single-shot,
+        // no re-run loop reads the state — symmetric with the read gate
+        // above).
+        if (store && !this.#config.synthesized) {
           const newLabels = preImage
             .filter((l) => !labelsToRemove.includes(l))
             .concat(labelsToAdd);
@@ -802,7 +1354,6 @@ export class Orchestrator {
       cycleCount: tracker.getCount(subjectId),
       history: tracker.getHistory(subjectId),
       status,
-      ...(issueClosed ? { issueClosed } : {}),
     };
 
     await log.info(
@@ -848,7 +1399,7 @@ export class Orchestrator {
     }
 
     // Staleness check uses a different precedence than the main loop.
-    // Main loop is terminal-first to honour `closeOnComplete` semantics;
+    // Main loop is terminal-first to honour `closeBinding` close semantics;
     // here we want regression detection to fire when an actionable label
     // coexists with a terminal one (user retry intent), so the order is:
     //   1. blocking  — preserve manual stop intent
@@ -872,7 +1423,7 @@ export class Orchestrator {
   }
 
   runBatch(
-    criteria: IssueCriteria,
+    source: IssueSource,
     options?: BatchOptions,
   ): Promise<BatchResult> {
     const runner = new BatchRunner(
@@ -881,8 +1432,11 @@ export class Orchestrator {
       this.#github,
       this.#dispatcher,
       this.#cwd,
+      this.#agentRegistry,
+      this.#bus,
+      this.#runId,
     );
-    return runner.run(criteria, options);
+    return runner.run(source, options);
   }
 
   /**

@@ -46,25 +46,32 @@ main() {
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "detect:keyword": "initial.review"
+    "detect:keyword": { "initial": "initial.review", "continuation": "initial.review" }
   },
   "steps": {
     "system": {
       "stepId": "system",
       "name": "System Prompt",
-      "c2": "system",
-      "c3": "prompt",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "system",
+        "c3": "prompt",
+        "edition": "default"
+      },
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
     "initial.review": {
       "stepId": "initial.review",
       "name": "Code Review",
-      "c2": "initial",
-      "c3": "review",
-      "edition": "default",
-      "stepKind": "work",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "review",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -76,10 +83,13 @@ main() {
     "closure.review": {
       "stepId": "closure.review",
       "name": "Review Closure",
-      "c2": "closure",
-      "c3": "review",
-      "edition": "default",
-      "stepKind": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "review",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}

@@ -17,6 +17,7 @@ import {
   type PromptVariables as LoaderVariables,
 } from "./c3l-prompt-loader.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
+import { makeStep } from "./step-registry/test-helpers.ts";
 import {
   BREAKDOWN_DETAIL_PREFIX,
   prC3lPromptNotFound,
@@ -245,15 +246,17 @@ Content`;
 // branch via a stub loader, so this branch is still protected.
 Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (workingDir without config)", async () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "initial.test",
-    name: "Test Step",
-    c2: "initial",
-    c3: "test",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
+      stepId: "initial.test",
+      name: "Test Step",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
@@ -268,15 +271,22 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive
 
 Deno.test("PromptResolver - surfaces PR-C3L-002 for step with required UV vars when breakdown rejects directive", async () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "required.vars",
-    name: "Required Vars",
-    c2: "initial",
-    c3: "required",
-    edition: "default",
-    uvVariables: ["required_var"],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      kind: "work" as const,
+      address: {
+        c1: "steps",
+        c2: "initial",
+        c3: "required",
+        edition: "default",
+      },
+      stepId: "required.vars",
+      name: "Required Vars",
+      uvVariables: ["required_var"],
+      usesStdin: false,
+    }),
+  );
 
   const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
@@ -308,15 +318,17 @@ Deno.test("PromptResolver - throws on unknown step ID", async () => {
 
 Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (closure step, no fallback)", async () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "closure.issue",
-    name: "Closure Issue",
-    c2: "closure",
-    c3: "issue",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      kind: "closure" as const,
+      address: { c1: "steps", c2: "closure", c3: "issue", edition: "default" },
+      stepId: "closure.issue",
+      name: "Closure Issue",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
@@ -331,15 +343,17 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive
 
 Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (step with UV variables)", async () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "initial.test",
-    name: "Test",
-    c2: "initial",
-    c3: "test",
-    edition: "default",
-    uvVariables: ["name"],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
+      stepId: "initial.test",
+      name: "Test",
+      uvVariables: ["name"],
+      usesStdin: false,
+    }),
+  );
 
   const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
@@ -370,15 +384,17 @@ function makeResolverWithStubLoader(
   loadResult: PromptLoadResult,
 ): PromptResolver {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "initial.test",
-    name: "Test Step",
-    c2: "initial",
-    c3: "test",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
+      stepId: "initial.test",
+      name: "Test Step",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   const resolver = new PromptResolver(registry, { workingDir: testTmpDir });
   // Inject stub loader. The resolver only calls .load(), so a partial mock

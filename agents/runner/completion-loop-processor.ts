@@ -16,10 +16,12 @@ import type {
   RuntimeContext,
 } from "../src_common/types.ts";
 import { AgentStepRoutingError, AgentValidationAbortError } from "./errors.ts";
+// Note: `AgentAdaptationChainExhaustedError` is thrown via the
+// `advanceClosureAdaptation` helper (`adaptation-cursor.ts`). Direct
+// import removed — the helper is the only call site.
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
-import { inferStepKind } from "../common/step-registry/utils.ts";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
 
 // Extracted module types
@@ -31,12 +33,24 @@ import type { BoundaryHooks } from "./boundary-hooks.ts";
 import type { ClosureAdapter } from "./closure-adapter.ts";
 import type { AgentEventEmitter } from "./events.ts";
 import type { VerboseLogger } from "./verbose-logger.ts";
+import {
+  type AdaptationCursor,
+  advanceClosureAdaptation,
+} from "./adaptation-cursor.ts";
 
 export interface CompletionLoopDeps {
   readonly closureManager: ClosureManager;
   readonly boundaryHooks: BoundaryHooks;
   readonly closureAdapter: ClosureAdapter;
-  readonly queryExecutor: QueryExecutor;
+  /**
+   * Async factory for the SDK-bound {@link QueryExecutor}.
+   *
+   * Constructed lazily by {@link AgentRunner.ensureQueryExecutor}. Only
+   * the closure LLM path calls this — subprocess closures skip it so the
+   * settings file is never read for merger-style agents. Subsequent calls
+   * return the cached instance (idempotent).
+   */
+  getQueryExecutor(): Promise<QueryExecutor>;
   readonly flowOrchestrator: FlowOrchestrator;
   readonly schemaManager: SchemaManager;
   readonly eventEmitter: AgentEventEmitter;
@@ -47,6 +61,28 @@ export interface CompletionLoopDeps {
   readonly pendingRetryPrompt: {
     get(): string | null;
     set(value: string | null): void;
+  };
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.2).
+   * Shared with `AgentRunner` and `WorkflowRouter` so closure and
+   * non-closure repeats observe one cursor advance per stepId. Used by
+   * `runClosureLoop` on the closure-step `action === "repeat"` path:
+   * advances the chain, throws `AgentAdaptationChainExhaustedError` on
+   * overflow, otherwise queues the resolved adaptation for the next
+   * iteration's prompt resolve via `pendingAdaptation`.
+   */
+  readonly adaptationCursor: AdaptationCursor;
+  /**
+   * Pending self-route adaptation queued for the next iteration's
+   * `closureAdapter.tryClosureAdaptation` call. Set after a successful
+   * cursor advance; consumed once by the next `runClosureIteration` and
+   * cleared. Owned by `AgentRunner` so the runner-level prompt-resolve
+   * site (Flow Loop) and the closure-loop prompt-resolve site share one
+   * slot — there is at most one pending adaptation per run.
+   */
+  readonly pendingAdaptation: {
+    get(stepId: string): string | undefined;
+    set(stepId: string, adaptation: string): void;
   };
   resolveSystemPromptForIteration(ctx: RuntimeContext): Promise<{
     type: "preset";
@@ -101,20 +137,11 @@ export class CompletionLoopProcessor {
     });
 
     if (!validation.valid) {
+      // Unrecoverable / maxAttempts-exhausted failures throw
+      // `AgentValidationAbortError` directly from the validation chain
+      // (design 16 §C — ExecutionError propagates out of the cycle).
+      // Here we only handle the surviving 2 actions: skip and retry.
       const action = validation.action ?? "retry";
-
-      // Dispatch based on onFailure action
-      if (action === "abort") {
-        ctx.logger.error(
-          "[CompletionLoop] Validation abort: unrecoverable or maxAttempts exceeded",
-        );
-        throw new AgentValidationAbortError(
-          `Validation aborted for step "${closureStepId}": ${
-            validation.retryPrompt ?? "validation failed"
-          }`,
-          { stepId: closureStepId },
-        );
-      }
 
       if (action === "skip") {
         ctx.logger.warn(
@@ -149,12 +176,12 @@ export class CompletionLoopProcessor {
         const action = (nextAction as Record<string, unknown>).action;
         if (action === "closing" || action === "repeat") {
           const stepDef = this.deps.closureManager.stepsRegistry
-            ?.steps[stepId] as PromptStepDefinition | undefined;
-          const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+            ?.steps[stepId] as Step | undefined;
+          const kind = stepDef?.kind;
 
-          if (stepKind !== "closure") {
+          if (kind !== "closure") {
             throw new AgentStepRoutingError(
-              `Non-closure step "${stepId}" (kind: ${stepKind ?? "unknown"}) ` +
+              `Non-closure step "${stepId}" (kind: ${kind ?? "unknown"}) ` +
                 `emitted closing signal "${action}". ` +
                 `Only closure steps may emit closing/repeat signals.`,
               { stepId },
@@ -165,6 +192,10 @@ export class CompletionLoopProcessor {
             ctx.logger.info(
               `[CompletionLoop] Closure step structured signal: closing`,
             );
+            // Forward progress (closure -> close). Reset the self-route
+            // cursor for this stepId so a future re-entry starts a fresh
+            // chain (design 01-self-route-termination §2.2).
+            this.deps.adaptationCursor.reset(stepId);
             await this.deps.boundaryHooks.invokeBoundaryHook(
               stepId,
               summary,
@@ -176,9 +207,27 @@ export class CompletionLoopProcessor {
               reason: "Closure step emitted closing signal",
             };
           }
-          // action === "repeat"
+          // action === "repeat" — delegate to the shared
+          // closure-path advance helper so cursor++/exhaustion shape
+          // matches the test's contract assertion (P1-5 fix).
+          // The helper handles: (i) Q1 = B default `["default"]` when
+          // `adaptationChain` is undefined, (ii) §2.5 `chain_exhausted`
+          // emit before throw on overflow, (iii) throw of
+          // `AgentAdaptationChainExhaustedError` with stable field
+          // shape. Co-located with `AdaptationCursor` (single source
+          // of truth — production and test both call this function).
+          const advance = advanceClosureAdaptation(
+            this.deps.adaptationCursor,
+            stepId,
+            stepDef?.adaptationChain,
+          );
+          // Queue the resolved adaptation for the next iteration's
+          // closure prompt resolve (`closureAdapter.tryClosureAdaptation`
+          // → `prompt-resolver.resolve(..., { adaptation })`).
+          this.deps.pendingAdaptation.set(stepId, advance.adaptation);
           ctx.logger.info(
             `[CompletionLoop] Closure step structured signal: repeat`,
+            { adaptation: advance.adaptation },
           );
           ctx.logger.info("[CompletionLoop] Exit", { stepId, done: false });
           return { done: false, reason: "Closure step requested repeat" };
@@ -275,12 +324,20 @@ export class CompletionLoopProcessor {
         "[CompletionLoop] Using retry prompt from validation",
       );
     } else {
+      // Consume the pending self-route adaptation (design 01-self-route-
+      // termination §3.2). When the previous iteration emitted
+      // `action === "repeat"`, the cursor advance queued the resolved
+      // chain element here. Consume-once: a stepId mismatch yields
+      // undefined so a stale entry never leaks into a different step's
+      // resolve call.
+      const adaptationOverride = this.deps.pendingAdaptation.get(stepId);
       // Try C3L closure prompt via closureAdapter
       const closurePrompt = await this.deps.closureAdapter
         .tryClosureAdaptation(
           stepId,
           ctx,
           this.deps.buildUvVariables(iteration),
+          adaptationOverride,
         );
       if (closurePrompt) {
         prompt = closurePrompt.content;
@@ -341,8 +398,15 @@ export class CompletionLoopProcessor {
     }
 
     // Step 4.5: Pre-flight state validation (Phase 1)
-    // Validate state conditions BEFORE the LLM call.
-    // Format validation (Phase 2) runs post-LLM in runClosureLoop.
+    //
+    // Pure-predicate validation BEFORE the LLM call. Pre-flight validators
+    // cannot produce a retry prompt, so failure here is ALWAYS terminal:
+    // the closure step aborts via AgentValidationAbortError. The LLM is
+    // never invoked to "fix" a pre-flight failure — that is the structural
+    // guarantee of the phase split (see agents/docs/builder/validator-catalog.md).
+    //
+    // Format validation (Phase 2) and action-requiring checks belong to
+    // post-LLM and run later inside runClosureLoop.
     const closureStepId = this.deps.closureManager.getClosureStepId();
     const preFlightResult = await this.deps.closureManager
       .validateStateConditions(
@@ -350,25 +414,23 @@ export class CompletionLoopProcessor {
         ctx.logger,
       );
     if (!preFlightResult.valid) {
-      ctx.logger.info("[CompletionLoop] Pre-flight state validation failed", {
-        stepId: closureStepId,
-      });
-      return {
-        done: false,
-        reason: preFlightResult.retryPrompt ?? "State validation failed",
-        retryPrompt: preFlightResult.retryPrompt,
-        summary: summaries[summaries.length - 1] ?? {
-          iteration,
-          assistantResponses: [],
-          toolsUsed: [],
-          errors: [],
+      const reason = preFlightResult.reason ?? "pre-flight validation failed";
+      ctx.logger.error(
+        "[CompletionLoop] Pre-flight state validation failed — aborting",
+        {
+          stepId: closureStepId,
+          reason,
         },
-        isRateLimitRetry: false,
-      };
+      );
+      throw new AgentValidationAbortError(
+        `Validation aborted for step "${closureStepId}": ${reason}`,
+        { stepId: closureStepId },
+      );
     }
 
     // Step 5: LLM query
-    const summary = await this.deps.queryExecutor.executeQuery({
+    const queryExecutor = await this.deps.getQueryExecutor();
+    const summary = await queryExecutor.executeQuery({
       prompt,
       systemPrompt,
       plugins,
@@ -434,17 +496,17 @@ export class CompletionLoopProcessor {
   }
 
   /**
-   * Check if a step is a closure step (stepKind: "closure").
+   * Check if a step is a closure step (kind: "closure").
    * Closure steps are processed by the Completion Loop, not the Flow Loop.
    */
   public isClosureStep(stepId: string): boolean {
     const registry = this.deps.closureManager.stepsRegistry;
     if (!registry?.steps) return false;
     const stepDef = registry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef) return false;
-    return inferStepKind(stepDef) === "closure";
+    return stepDef.kind === "closure";
   }
 
   /**

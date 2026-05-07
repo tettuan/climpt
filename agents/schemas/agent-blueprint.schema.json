@@ -27,7 +27,7 @@
     "R-A1": "agent.name must equal registry.agentId (cross-section identity)",
     "R-A2": "agent.parameters keys must be a superset of (union of all step uvVariables) minus runtime-supplied variables (RUNTIME_SUPPLIED_UV_VARS in constants.ts)",
     "R-A3": "When entryStepMapping is used: agent.runner.verdict.type must be a key in registry.entryStepMapping",
-    "R-A4": "Every value in registry.entryStepMapping must be a key in registry.steps",
+    "R-A4": "Every entryStepMapping value's 'initial' and 'continuation' must be keys in registry.steps",
     "R-A5": "args.* references inside step transition conditions must correspond to keys in agent.parameters",
     "R-A6": "When registry.entryStep (singular) is used: its value must be a key in registry.steps",
     "R-B1": "step.stepId must equal the object key under which it is defined",
@@ -39,9 +39,10 @@
     "R-B12": "The transitions 'fallback' key must not appear in allowedIntents",
     "R-B13": "All steps must be reachable from the entry point(s) via transitions (reachability check)",
     "R-C1": "validators[*].failurePattern must be a key in failurePatterns",
-    "R-C2": "validationSteps[*].validationConditions[*].validator must be a key in validators",
+    "R-C2": "validationSteps[*].preflightConditions[*].validator AND postLLMConditions[*].validator must be keys in validators",
     "R-C3": "Direct transition fallback field (when present) must be a key in registry.steps",
     "R-C4": "Conditional transition targets values must all be keys in registry.steps or null",
+    "R-C7": "A validator referenced from validationSteps[*].preflightConditions MUST declare phase:'preflight'; one referenced from postLLMConditions MUST declare phase:'postllm'. Phase-less validators cannot be referenced from either slot.",
     "R-D1": "outputSchemaRef.file must be a key in the top-level schemas object",
     "R-D2": "outputSchemaRef.schema must exist as a definition within schemas[file] (definitions, $defs, or top-level key)",
     "R-D3": "The schema's next_action.action.enum must equal the step's allowedIntents",
@@ -52,7 +53,7 @@
 
   "$defs": {
     "AgentSection": {
-      "description": "The agent definition section. Mirrors agent.json structure. Enforces: R-F1 (name pattern), R-F2 (version semver), R-F3 (verdict type enum), R-F4 (permissionMode enum), R-F5 (parameter type enum), R-F6 (cli pattern), R-F12 (verdict config per type), R-F16 (validation keys), R-F17 (required boolean), R-F18 (logging format enum), R-F19 (closureAction enum).",
+      "description": "The agent definition section. Mirrors agent.json structure. Enforces: R-F1 (name pattern), R-F2 (version semver), R-F3 (verdict type enum), R-F5 (parameter type enum), R-F6 (cli pattern), R-F12 (verdict config per type), R-F16 (validation keys), R-F17 (required boolean), R-F18 (logging format enum), R-F19 (closureAction enum).",
       "type": "object",
       "required": ["name", "version", "displayName", "description", "runner"],
       "properties": {
@@ -147,9 +148,9 @@
     },
 
     "RunnerConfig": {
-      "description": "Runner configuration. Requires flow, verdict, boundaries.",
+      "description": "Runner configuration. Requires flow and verdict; boundaries is optional (sandbox-only).",
       "type": "object",
-      "required": ["flow", "verdict", "boundaries"],
+      "required": ["flow", "verdict"],
       "properties": {
         "flow": {
           "$ref": "#/$defs/RunnerFlowConfig"
@@ -480,31 +481,9 @@
     },
 
     "RunnerBoundariesConfig": {
-      "description": "Boundary constraints for the runner. Enforces: R-F4 (permissionMode enum).",
+      "description": "Sandbox constraints only; allowedTools/permissionMode moved to `.agent/climpt/config/claude.settings.climpt.agents.*.json`.",
       "type": "object",
-      "required": ["allowedTools", "permissionMode"],
       "properties": {
-        "allowedTools": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Tools the agent is allowed to use"
-        },
-        "permissionMode": {
-          "type": "string",
-          "oneOf": [
-            { "const": "default", "title": "Standard permission prompts" },
-            {
-              "const": "plan",
-              "title": "Require plan approval before execution"
-            },
-            { "const": "acceptEdits", "title": "Auto-accept file edits" },
-            {
-              "const": "bypassPermissions",
-              "title": "Skip all permission prompts"
-            }
-          ],
-          "description": "Claude permission mode. R-F4."
-        },
         "sandbox": {
           "$ref": "#/$defs/SandboxConfig"
         }
@@ -761,8 +740,16 @@
         },
         "entryStepMapping": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
-          "description": "Verdict-type to entry step mapping. R-A3, R-A4: keys must include verdict type, values must be step keys (runtime validation)."
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "initial": { "type": "string" },
+              "continuation": { "type": "string" }
+            },
+            "required": ["initial", "continuation"],
+            "additionalProperties": false
+          },
+          "description": "Verdict-type to entry step pair. R-A3, R-A4: keys must include verdict type; values declare 'initial' and 'continuation' step ids, both must exist in steps (runtime validation)."
         },
         "steps": {
           "type": "object",
@@ -888,7 +875,7 @@
         "permissionMode": {
           "type": "string",
           "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
-          "description": "Permission mode override for this step. Falls back to stepKind default, then agent-level boundaries.permissionMode."
+          "description": "Permission mode override for this step. Falls back to stepKind default, then `permissions.defaultMode` from `.agent/climpt/config/claude.settings.climpt.agents.*.json`."
         },
         "priority": {
           "type": "integer",
@@ -1219,7 +1206,7 @@
     },
 
     "Validator": {
-      "description": "A named validator definition. Enforces: type is 'command', command, successWhen, and failurePattern are required strings. R-C1: failurePattern must be a key in failurePatterns (runtime validation).",
+      "description": "A named validator definition. Enforces: type is 'command', command, successWhen, and failurePattern are required strings. R-C1: failurePattern must be a key in failurePatterns (runtime validation). R-C7: when wired into any validationSteps[*] conditions slot, phase MUST match the slot (preflightConditions ↔ preflight, postLLMConditions ↔ postllm).",
       "type": "object",
       "required": ["type", "command", "successWhen", "failurePattern"],
       "properties": {
@@ -1227,6 +1214,11 @@
           "type": "string",
           "enum": ["command"],
           "description": "Validator type"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["preflight", "postllm"],
+          "description": "Execution phase. 'preflight' — pure predicate evaluated BEFORE the LLM call (cannot produce retry prompt; failure aborts). 'postllm' — evaluated AFTER the LLM call (may request remediation via retry prompt). Required when the validator is referenced by any ValidationStep conditions slot."
         },
         "command": {
           "type": "string",
@@ -1275,9 +1267,16 @@
     },
 
     "ValidationStep": {
-      "description": "A validation step definition. Enforces: R-C5 (onFailure.action enum), R-C6 (maxAttempts >= 1). R-C2: validationConditions[*].validator must be a key in validators (runtime validation).",
+      "description": "A validation step definition. Two distinct condition slots are enforced structurally: preflightConditions (pre-LLM, pure predicate, no retry prompt) and postLLMConditions (post-LLM, may produce retry prompt). Enforces: R-C5 (onFailure.action enum), R-C6 (maxAttempts >= 1), R-C2 (referenced validators must exist), R-C7 (validator phase must match slot).",
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": [
+        "stepId",
+        "name",
+        "c2",
+        "c3",
+        "preflightConditions",
+        "postLLMConditions"
+      ],
       "properties": {
         "stepId": {
           "type": "string",
@@ -1295,16 +1294,23 @@
           "type": "string",
           "description": "C3L Classification"
         },
-        "validationConditions": {
+        "preflightConditions": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ValidationCondition"
           },
-          "description": "Conditions that must pass for validation"
+          "description": "Conditions evaluated BEFORE the LLM call. Referenced validators MUST declare phase: 'preflight'. Failure aborts the closure step (no retry, no LLM)."
+        },
+        "postLLMConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValidationCondition"
+          },
+          "description": "Conditions evaluated AFTER the LLM call. Referenced validators MUST declare phase: 'postllm'. May produce a retry prompt instructing the LLM to fix the observed state."
         },
         "onFailure": {
           "$ref": "#/$defs/FailureAction",
-          "description": "Action when validation fails"
+          "description": "Action on postLLMConditions failure. Does not apply to preflightConditions (always abort)."
         },
         "outputSchemaRef": {
           "$ref": "#/$defs/OutputSchemaRef",
@@ -1341,10 +1347,9 @@
               "const": "retry",
               "title": "Retry the step (requires maxAttempts)"
             },
-            { "const": "abort", "title": "Stop execution immediately" },
             { "const": "skip", "title": "Skip this step and continue" }
           ],
-          "description": "Failure action. R-C5."
+          "description": "Failure action. R-C5. Unrecoverable failure / maxAttempts exhaustion is thrown as ExecutionError (AgentValidationAbortError) per design 16 §C — not configurable here."
         },
         "maxAttempts": {
           "type": "integer",

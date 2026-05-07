@@ -1,6 +1,0 @@
-# Build Configuration for facilitator-steps
-working_dir: ".agent/facilitator"
-app_prompt:
-  base_dir: "prompts/steps"
-app_schema:
-  base_dir: "schema/steps"

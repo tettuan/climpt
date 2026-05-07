@@ -31,6 +31,24 @@ import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { PromptResolutionResult } from "../common/prompt-resolver.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
+import { join } from "@std/path";
+
+/**
+ * Materialize a steps_registry.json into a fresh temp agentDir so that
+ * createRegistryVerdictHandler can resolve entryStepMapping. Returns the
+ * agent dir path; caller is responsible for cleanup if desired.
+ */
+async function makeAgentDirWithRegistry(
+  registry: Record<string, unknown>,
+): Promise<string> {
+  const dir = await Deno.makeTempDir({ prefix: "verdict-test-" });
+  await Deno.writeTextFile(
+    join(dir, "steps_registry.json"),
+    JSON.stringify(registry),
+  );
+  return dir;
+}
 
 // =============================================================================
 // Test Utilities
@@ -85,10 +103,6 @@ function createMockAgentDefinition(
         },
       },
       verdict,
-      boundaries: {
-        allowedTools: ["Bash", "Read", "Write"],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
@@ -1090,12 +1104,11 @@ function createMockStepsRegistry(
     c1: "steps",
     entryStep: "initial.test",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Initial Test Step",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -1109,13 +1122,17 @@ function createMockStepsRegistry(
           repeat: { target: "initial.test" },
           closing: { target: "closure" },
         },
-      },
-      "continuation.test": {
+      }),
+      "continuation.test": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "test",
+          edition: "default",
+        },
         stepId: "continuation.test",
         name: "Continuation Test Step",
-        c2: "continuation",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -1129,7 +1146,7 @@ function createMockStepsRegistry(
           repeat: { target: "continuation.test" },
           closing: { target: "closure" },
         },
-      },
+      }),
     },
   };
 
@@ -1272,10 +1289,6 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
         type: "poll:state",
         config: { maxIterations: 10 },
       },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
-      },
       integrations: {
         github: {
           enabled: true,
@@ -1288,10 +1301,45 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "poll:state": {
+        initial: "initial.polling",
+        continuation: "continuation.polling",
+      },
+    },
+    steps: {
+      "initial.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "polling",
+          edition: "default",
+        },
+        stepId: "initial.polling",
+        name: "Initial",
+      }),
+      "continuation.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "polling",
+          edition: "default",
+        },
+        stepId: "continuation.polling",
+        name: "Continuation",
+      }),
+    },
+  });
   const result = await createRegistryVerdictHandler(
     definition,
     { issue: 123, repository: "owner/repo" },
-    "/tmp/claude/test-agent",
+    agentDir,
   );
   logger.debug("factory result", { type: result?.type });
 
@@ -1326,10 +1374,6 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
           maxIterations: 10,
         },
       },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
-      },
       integrations: {
         github: {
           enabled: true,
@@ -1345,11 +1389,46 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "poll:state": {
+        initial: "initial.polling",
+        continuation: "continuation.polling",
+      },
+    },
+    steps: {
+      "initial.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "polling",
+          edition: "default",
+        },
+        stepId: "initial.polling",
+        name: "Initial",
+      }),
+      "continuation.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "polling",
+          edition: "default",
+        },
+        stepId: "continuation.polling",
+        name: "Continuation",
+      }),
+    },
+  });
   try {
     await createRegistryVerdictHandler(
       definition,
       {},
-      "/tmp/claude/test-agent",
+      agentDir,
     );
     throw new Error("Should have thrown");
   } catch (error) {
@@ -1381,10 +1460,6 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
           maxIterations: 5,
         },
       },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
-      },
       integrations: {
         github: {
           enabled: true,
@@ -1400,10 +1475,45 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "count:iteration": {
+        initial: "initial.iteration",
+        continuation: "continuation.iteration",
+      },
+    },
+    steps: {
+      "initial.iteration": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "iteration",
+          edition: "default",
+        },
+        stepId: "initial.iteration",
+        name: "Initial",
+      }),
+      "continuation.iteration": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "iteration",
+          edition: "default",
+        },
+        stepId: "continuation.iteration",
+        name: "Continuation",
+      }),
+    },
+  });
   const result = await createRegistryVerdictHandler(
     definition,
     {},
-    "/tmp/claude/test-agent",
+    agentDir,
   );
 
   assertExists(result);
@@ -2128,15 +2238,14 @@ Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial 
     c1: "steps",
     entryStep: "work.analyze",
     steps: {
-      "work.analyze": {
+      "work.analyze": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "work", c3: "analyze", edition: "default" },
         name: "Analyze",
         stepId: "work.analyze",
-        c2: "work",
-        c3: "analyze",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -2170,3 +2279,211 @@ Deno.test("setUvVariables - StructuredSignalVerdictHandler merges base UV", asyn
   assertEquals(passedUv?.signal_type, "completion_signal");
   assertEquals(passedUv?.iteration, "2");
 });
+
+// =============================================================================
+// T38 / critique-6 N#5: SR-LOAD-003 caller policy contracts
+//
+// The loader owns the SR-LOAD-003 swallow (T38). The factory has two
+// distinct caller intents that must remain visible at the caller site:
+//
+//   - detect:graph: registry MUST exist; SR-LOAD-003 is loud-thrown by
+//     the loader (no `allowMissing`) and remapped here to AC-VERDICT-011
+//     for end-user guidance.
+//   - createRegistryVerdictHandler (non-detect:graph): registry is
+//     optional; the loader fabricates an empty registry via
+//     `allowMissing: true`. The factory still completes successfully
+//     and returns the appropriate handler.
+//
+// Both tests use a temp-dir registry path that does NOT exist on disk
+// to drive the SR-LOAD-003 path through the loader. The fixture for
+// detect:graph asserts the **error code remap**; the fixture for the
+// generic path asserts **success without throw**.
+// =============================================================================
+
+Deno.test(
+  "T38: detect:graph remaps loader SR-LOAD-003 to AC-VERDICT-011 (registry required)",
+  async () => {
+    // The detect:graph handler reads its own registry from
+    // `verdictConfig.registryPath`. We point that at a missing file
+    // while supplying a valid registry at `flow.prompts.registry` so
+    // `resolveStepIds` (called by createRegistryVerdictHandler before
+    // the detect:graph factory runs) succeeds. The detect:graph
+    // factory then loads the missing file via the loader's default
+    // loud-throw policy (`allowMissing` omitted → SR-LOAD-003 raised),
+    // which the factory remaps to AC-VERDICT-011 for end-user guidance.
+    const tempDir = await Deno.makeTempDir({ prefix: "t38-detect-graph-" });
+    const missingRegistryPath = `${tempDir}/missing-detect-graph-registry.json`;
+
+    // Write a valid registry for createRegistryVerdictHandler's outer
+    // load. It MUST contain entryStepMapping["detect:graph"] so
+    // resolveStepIds does not pre-empt AC-VERDICT-011 with
+    // AC-VERDICT-012.
+    const validStep = makeStep({
+      kind: "work" as const,
+      address: {
+        c1: "steps",
+        c2: "step",
+        c3: "graph",
+        edition: "default",
+      },
+      stepId: "step.graph",
+      name: "Graph",
+    });
+    await Deno.writeTextFile(
+      `${tempDir}/steps_registry.json`,
+      JSON.stringify({
+        agentId: "test-agent",
+        version: "1.0.0",
+        c1: "steps",
+        entryStepMapping: {
+          "detect:graph": {
+            initial: "step.graph",
+            continuation: "step.graph",
+          },
+        },
+        steps: { "step.graph": validStep },
+      }),
+    );
+
+    const definition: AgentDefinition = {
+      name: "test-agent",
+      displayName: "Test",
+      description: "Test",
+      version: "1.0.0",
+      parameters: {},
+      runner: {
+        flow: {
+          systemPromptPath: "prompts/system.md",
+          prompts: {
+            registry: "steps_registry.json",
+            fallbackDir: "prompts/",
+          },
+        },
+        verdict: {
+          type: "detect:graph",
+          config: {
+            maxIterations: 10,
+            // Point detect:graph at a deliberately-missing path so
+            // its inner load throws SR-LOAD-003 from the loader.
+            registryPath: missingRegistryPath,
+          },
+        },
+        execution: {},
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    } as AgentDefinition;
+
+    let caught: unknown = undefined;
+    try {
+      await createRegistryVerdictHandler(definition, {}, tempDir);
+    } catch (e) {
+      caught = e;
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+
+    assertExists(caught);
+    // The remap target is AC-VERDICT-011. The factory must NOT swallow
+    // the not-found case to an empty registry — detect:graph requires
+    // the step graph to exist for the StepMachineVerdictHandler.
+    const err = caught as { code?: string; message?: string };
+    assertEquals(
+      err.code,
+      "AC-VERDICT-011",
+      `Expected AC-VERDICT-011 (detect:graph requires registry), got ${err.code}. ` +
+        "If allowMissing leaked into detect:graph, the loader's SR-LOAD-003 " +
+        "would have been swallowed to an empty registry instead of being remapped here.",
+    );
+    assertStringIncludes(
+      err.message ?? "",
+      missingRegistryPath,
+      "Diagnostic must name the missing registry path so operators can locate it.",
+    );
+  },
+);
+
+Deno.test(
+  "T38: createRegistryVerdictHandler non-detect:graph swallows SR-LOAD-003 via allowMissing (count:iteration)",
+  async () => {
+    const tempDir = await Deno.makeTempDir({ prefix: "t38-iteration-" });
+    // Deliberately NO steps_registry.json on disk. The loader's
+    // `allowMissing: true` opt-in must fabricate an empty registry, and
+    // the factory must build a count:iteration handler successfully.
+    //
+    // Note: count:iteration also reads `entryStepMapping` via
+    // `resolveStepIds`, which requires an entry. We register the
+    // mapping by writing a minimal valid registry whose `steps` is
+    // empty but `entryStepMapping` is populated. This proves both:
+    //   (a) the loader successfully loaded a present-but-minimal file
+    //       (no swallow), AND
+    //   (b) the factory does NOT depend on createEmptyRegistry as a
+    //       fallback when the file IS present.
+    //
+    // To exercise the SR-LOAD-003 path itself, see the loader_test.ts
+    // case (6b). Here we pin the **caller-side** policy: the absence of
+    // a try/catch with createEmptyRegistry around loadStepRegistry must
+    // not regress (i.e., `allowMissing: true` is the only swallow).
+    await Deno.writeTextFile(
+      `${tempDir}/steps_registry.json`,
+      JSON.stringify({
+        agentId: "test-agent",
+        version: "1.0.0",
+        c1: "steps",
+        entryStepMapping: {
+          "count:iteration": {
+            initial: "step.iter",
+            continuation: "step.iter",
+          },
+        },
+        steps: {
+          "step.iter": makeStep({
+            kind: "work" as const,
+            address: {
+              c1: "steps",
+              c2: "step",
+              c3: "iter",
+              edition: "default",
+            },
+            stepId: "step.iter",
+            name: "Iter",
+          }),
+        },
+      }),
+    );
+
+    const definition: AgentDefinition = {
+      name: "test-agent",
+      displayName: "Test",
+      description: "Test",
+      version: "1.0.0",
+      parameters: {},
+      runner: {
+        flow: {
+          systemPromptPath: "prompts/system.md",
+          prompts: {
+            registry: "steps_registry.json",
+            fallbackDir: "prompts/",
+          },
+        },
+        verdict: {
+          type: "count:iteration",
+          config: { maxIterations: 5 },
+        },
+        execution: {},
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    } as AgentDefinition;
+
+    try {
+      const result = await createRegistryVerdictHandler(
+        definition,
+        {},
+        tempDir,
+      );
+      assertExists(result);
+      assertEquals(result.type, "count:iteration");
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);

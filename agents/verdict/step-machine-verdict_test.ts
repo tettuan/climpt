@@ -14,6 +14,7 @@
 import { assertEquals } from "@std/assert";
 import { StepMachineVerdictHandler } from "./step-machine.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 // =============================================================================
 // Helpers
@@ -28,12 +29,17 @@ function createMinimalRegistry(
     c1: "steps",
     entryStep,
     steps: {
-      [entryStep]: {
+      [entryStep]: makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "review",
+          edition: "default",
+        },
+        stepId: entryStep,
         name: "Test Step",
-        c2: "initial",
-        c3: "review",
-        edition: "default",
-      },
+      }),
     },
   } as ExtendedStepsRegistry;
 }
@@ -56,7 +62,7 @@ Deno.test("StepMachine - onBoundaryHook extracts verdict from structured output"
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: {
       verdict: "approved",
       closure_action: "label-and-close",
@@ -71,7 +77,7 @@ Deno.test("StepMachine - onBoundaryHook extracts rejected verdict", async () => 
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: {
       verdict: "rejected",
       closure_action: "label-only",
@@ -91,7 +97,7 @@ Deno.test("StepMachine - onBoundaryHook ignores missing verdict field", async ()
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { closure_action: "close" },
   });
 
@@ -103,7 +109,7 @@ Deno.test("StepMachine - onBoundaryHook ignores non-string verdict", async () =>
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { verdict: 123 },
   });
 
@@ -115,7 +121,7 @@ Deno.test("StepMachine - onBoundaryHook ignores empty string verdict", async () 
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { verdict: "" },
   });
 
@@ -127,7 +133,7 @@ Deno.test("StepMachine - onBoundaryHook without structuredOutput is no-op", asyn
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
   });
 
   assertEquals(handler.getLastVerdict(), undefined);
@@ -138,14 +144,14 @@ Deno.test("StepMachine - getLastVerdict returns latest verdict on multiple calls
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { verdict: "approved" },
   });
   assertEquals(handler.getLastVerdict(), "approved");
 
   await handler.onBoundaryHook({
     stepId: "closure.review",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { verdict: "rejected" },
   });
   assertEquals(handler.getLastVerdict(), "rejected");

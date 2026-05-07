@@ -268,12 +268,9 @@ agents/
 ├── iterator/
 │   ├── steps_registry.json       # Iterator step definitions
 │   └── prompts/steps/            # Iterator prompts
-├── reviewer/
-│   ├── steps_registry.json       # Reviewer step definitions
-│   └── prompts/steps/            # Reviewer prompts
-└── facilitator/
-    ├── steps_registry.json       # Facilitator step definitions
-    └── prompts/steps/            # Facilitator prompts
+└── reviewer/
+    ├── steps_registry.json       # Reviewer step definitions
+    └── prompts/steps/            # Reviewer prompts
 ```
 
 ## Adding a New Agent

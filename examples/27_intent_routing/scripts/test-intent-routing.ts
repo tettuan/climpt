@@ -18,7 +18,27 @@ const log = console.log;
 const logErr = console.error;
 
 const repoRoot = Deno.env.get("REPO_ROOT") || Deno.cwd();
-const agents = ["iterator", "reviewer", "facilitator"];
+
+// Discover agents under `.agent/*/steps_registry.json` rather than hardcoding
+// names. This example is a user-emulating E2E check (see examples/CLAUDE.md)
+// and must work against whatever agents the user has installed.
+const agents: string[] = [];
+for await (const entry of Deno.readDir(join(repoRoot, ".agent"))) {
+  if (!entry.isDirectory) continue;
+  try {
+    await Deno.stat(
+      join(repoRoot, ".agent", entry.name, "steps_registry.json"),
+    );
+    agents.push(entry.name);
+  } catch {
+    // Not an agent directory — skip.
+  }
+}
+agents.sort();
+if (agents.length === 0) {
+  logErr("FAIL: no agents found under .agent/*/steps_registry.json");
+  Deno.exit(1);
+}
 
 let passed = 0;
 let failed = 0;

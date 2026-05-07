@@ -32,6 +32,7 @@ import type {
 import {
   AgentMaxIterationsError,
   AgentNotInitializedError,
+  AgentRateLimitError,
   AgentStepRoutingError,
   isAgentError,
   normalizeToAgentError,
@@ -57,11 +58,15 @@ import { FlowOrchestrator } from "./flow-orchestrator.ts";
 import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
+import { AdaptationCursor } from "./adaptation-cursor.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { SubjectRef } from "../orchestrator/workflow-types.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
+import { loadAgentSettings } from "../config/settings-loader.ts";
 import { prC3lNoPrompt } from "../shared/errors/config-errors.ts";
 import { formatIterationSummary } from "../verdict/types.ts";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
 import {
   type CommandRunner,
   runSubprocessRunner,
@@ -93,6 +98,27 @@ export interface RunnerOptions {
    * orchestrator / ArtifactEmitter boundary before this is passed down.
    */
   readonly issuePayload?: Readonly<Record<string, unknown>>;
+  /**
+   * T3.3 (shadow mode): frozen `CloseEventBus` from
+   * `BootArtifacts.bus`. When omitted (legacy callers, unit tests), the
+   * runner publishes nothing — internal lifecycle events still fire
+   * through {@link AgentEventEmitter}. T4 cutover replaces those with
+   * bus subscribers; until then the bus is purely observational.
+   */
+  readonly bus?: CloseEventBus;
+  /** Stable boot correlation id; paired with {@link bus}. */
+  readonly runId?: string;
+  /**
+   * PR4-3 (T4.4c): `BoundaryCloseChannel` from
+   * `BootArtifacts.boundaryClose`. Forwarded to the closure-step
+   * verdict adapter (`ExternalStateVerdictAdapter`) via
+   * `setBoundaryClose` so the adapter delegates close-writes to the
+   * channel instead of shelling out `gh issue close` itself. When
+   * omitted (unit tests), the adapter throws a descriptive error if a
+   * closure action requests a close.
+   */
+  readonly boundaryClose?:
+    import("../channels/boundary-close.ts").BoundaryCloseChannel;
 }
 
 // Re-export for backward compatibility
@@ -106,18 +132,65 @@ export class AgentRunner {
   private args: Record<string, unknown> = {};
   private issuePayload: Readonly<Record<string, unknown>> | undefined;
   private agentDir = "";
+  // T3.3 (shadow mode) — observational bus + correlation id. Wired from
+  // {@link RunnerOptions} on `initialize`; remain `undefined` for legacy
+  // callers and unit tests that bypass entry points.
+  private bus: CloseEventBus | undefined;
+  private runId: string | undefined;
+  /**
+   * PR4-3: `BoundaryCloseChannel` captured from
+   * {@link RunnerOptions.boundaryClose} during `initialize()`.
+   * Late-bound onto the `ExternalStateVerdictAdapter` via
+   * `setBoundaryClose`. Optional — when omitted the adapter throws if
+   * a closure action requests a close.
+   */
+  private boundaryClose:
+    | import("../channels/boundary-close.ts").BoundaryCloseChannel
+    | undefined;
 
   // Extracted module instances
   private readonly closureManager: ClosureManager;
   private readonly schemaManager: SchemaManager;
   private readonly flowOrchestrator: FlowOrchestrator;
-  private readonly queryExecutor: QueryExecutor;
+  /**
+   * QueryExecutor is constructed lazily on the first SDK-bound iteration
+   * (see {@link ensureQueryExecutor}). Merger agents never reach the SDK
+   * path (subprocess-closure) so they must not trigger settings loading —
+   * lazy init makes that a structural guarantee rather than a runtime
+   * opt-out.
+   */
+  private queryExecutor: QueryExecutor | null = null;
   private readonly boundaryHooks: BoundaryHooks;
   private readonly closureAdapter: ClosureAdapter;
   private completionLoopProcessor!: CompletionLoopProcessor;
 
   // Verdict validation
   private pendingRetryPrompt: string | null = null;
+
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.1).
+   *
+   * One instance per `AgentRunner` lifecycle (Q4 = run-scope owner). Tracks
+   * `intent === "repeat"` advances over each step's `adaptationChain` so the
+   * framework can throw `AgentAdaptationChainExhaustedError` instead of
+   * looping unbounded. Shared with `CompletionLoopProcessor` (closure
+   * `action === "repeat"`) and `WorkflowRouter` (non-closure
+   * `intent === "repeat"`) so a single chain advance is observed across
+   * both procedural paths.
+   */
+  private readonly adaptationCursor = new AdaptationCursor();
+
+  /**
+   * Adaptation override resolved by the cursor on the prior iteration's
+   * repeat detection. Consumed by the next iteration's prompt resolution
+   * (Flow Loop or Completion Loop) and then cleared. Scoped to a stepId so
+   * a stale entry from a previous step never leaks into a different step's
+   * resolve call. Forward-progress intents reset the cursor for the
+   * outgoing stepId, and they also clear this slot when the stepId no
+   * longer matches on consume.
+   */
+  private pendingAdaptation: { stepId: string; adaptation: string } | null =
+    null;
 
   // Verbose logging for SDK I/O debugging
   private verboseLogger: VerboseLogger | null = null;
@@ -140,6 +213,11 @@ export class AgentRunner {
     this.closureManager = new ClosureManager({
       definition: this.definition,
       dependencies: this.dependencies,
+      // Forward the run-scoped self-route cursor so WorkflowRouter shares
+      // the same instance as CompletionLoopProcessor — closure and
+      // non-closure repeats observe one cursor advance per stepId
+      // (design 01-self-route-termination §3.2).
+      adaptationCursor: this.adaptationCursor,
     });
 
     this.schemaManager = new SchemaManager({
@@ -157,17 +235,20 @@ export class AgentRunner {
       hasFlowRoutingEnabled: () => this.closureManager.hasFlowRoutingEnabled(),
     });
 
-    this.queryExecutor = new QueryExecutor({
-      definition: this.definition,
-      getContext: () => this.getContext(),
-      getStepsRegistry: () => this.closureManager.stepsRegistry,
-      getVerboseLogger: () => this.verboseLogger,
-      getSchemaManager: () => this.schemaManager,
-    });
-
     this.boundaryHooks = new BoundaryHooks({
       getStepsRegistry: () => this.closureManager.stepsRegistry,
       getEventEmitter: () => this.eventEmitter,
+      // T3.3: late-bound — `initialize()` populates `this.bus` /
+      // `this.runId` after `RunnerOptions` arrives; the hook reads via
+      // these getters so the BoundaryHooks instance can be shared
+      // across `run()` calls without re-construction.
+      getBus: () => this.bus,
+      getRunId: () => this.runId ?? "",
+      getSubjectId: () => {
+        const issue = this.args["issue"] as SubjectRef | undefined;
+        return issue;
+      },
+      getAgentId: () => this.definition.name,
     });
 
     this.closureAdapter = new ClosureAdapter({
@@ -189,6 +270,20 @@ export class AgentRunner {
   }
 
   /**
+   * Test seam (P1-3 contract): exposes whether `initialize()` wired the
+   * §2.5 telemetry sink onto the run-scoped `AdaptationCursor`. The
+   * runner calls `adaptationCursor.setLogSink(logger, this.runId)`
+   * inside `initialize()` so any future refactor that drops this wiring
+   * makes this getter return `false` and breaks the contract test.
+   *
+   * Production code does not branch on this — it exists solely as a
+   * diagnosability surface for the wiring contract.
+   */
+  get adaptationCursorHasLogSink(): boolean {
+    return this.adaptationCursor.hasLogSink;
+  }
+
+  /**
    * Get runtime context, throwing if not initialized.
    */
   private getContext(): RuntimeContext {
@@ -196,6 +291,35 @@ export class AgentRunner {
       throw new AgentNotInitializedError();
     }
     return this.context;
+  }
+
+  /**
+   * Build (once, lazily) the {@link QueryExecutor} used by Flow Loop and
+   * Completion Loop iterations.
+   *
+   * Settings are loaded from
+   * `.agent/climpt/config/claude.settings.climpt.agents.{name}.json`
+   * (with shared-file fallback) via {@link loadAgentSettings}. Merger-style
+   * agents that only run subprocess closures never reach this helper, so
+   * they are not required to ship a per-agent settings file.
+   *
+   * Idempotent: subsequent calls return the cached instance.
+   */
+  private async ensureQueryExecutor(): Promise<QueryExecutor> {
+    if (this.queryExecutor !== null) {
+      return this.queryExecutor;
+    }
+    const ctx = this.getContext();
+    const settings = await loadAgentSettings(this.definition.name, ctx.cwd);
+    this.queryExecutor = new QueryExecutor({
+      definition: this.definition,
+      settings,
+      getContext: () => this.getContext(),
+      getStepsRegistry: () => this.closureManager.stepsRegistry,
+      getVerboseLogger: () => this.verboseLogger,
+      getSchemaManager: () => this.schemaManager,
+    });
+    return this.queryExecutor;
   }
 
   async initialize(options: RunnerOptions): Promise<void> {
@@ -207,6 +331,12 @@ export class AgentRunner {
     this.issuePayload = options.issuePayload;
     this.agentDir = agentDir;
     this.commandRunner = options.commandRunner;
+    // T3.3: capture the boot-scoped bus + runId so subsequent boundary
+    // hooks publish under the correct correlation id. Optional — when
+    // omitted the BoundaryHooks publish branch short-circuits.
+    this.bus = options.bus;
+    this.runId = options.runId;
+    this.boundaryClose = options.boundaryClose;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -226,6 +356,33 @@ export class AgentRunner {
     // Set working directory for verdict handler (required for worktree mode)
     if ("setCwd" in verdictHandler) {
       (verdictHandler as { setCwd: (cwd: string) => void }).setCwd(cwd);
+    }
+
+    // T3.3 (shadow mode): if the verdict handler exposes `setEventBus`
+    // (only `ExternalStateVerdictAdapter` does today), late-bind the
+    // boot bus + runId. Post-PR4-3 the setter is a no-op shim — the
+    // BoundaryCloseChannel owns bus + runId capture — but the call is
+    // kept for backward compat with pre-cutover handler implementations.
+    if ("setEventBus" in verdictHandler) {
+      (verdictHandler as {
+        setEventBus: (
+          bus: CloseEventBus | undefined,
+          runId: string | undefined,
+        ) => void;
+      }).setEventBus(this.bus, this.runId);
+    }
+    // PR4-3 (T4.4c): late-bind the BoundaryCloseChannel so the
+    // closure-step verdict adapter delegates close-writes to the
+    // channel. Same opt-in pattern as `setEventBus` above —
+    // non-adapter verdict handlers ignore this seam.
+    if ("setBoundaryClose" in verdictHandler) {
+      (verdictHandler as {
+        setBoundaryClose: (
+          channel:
+            | import("../channels/boundary-close.ts").BoundaryCloseChannel
+            | undefined,
+        ) => void;
+      }).setBoundaryClose(this.boundaryClose);
     }
 
     // Initialize prompt resolver using injected factory
@@ -272,12 +429,20 @@ export class AgentRunner {
       promptLogger,
     };
 
+    // Late-bind §2.5 telemetry on the run-scoped self-route cursor. The
+    // cursor is created at field-init time (before logger is ready), so we
+    // wire the sink + agentRunId here once both are available. `runId` is
+    // `undefined` for standalone runs — the cursor's structured event
+    // carries the field as `string | undefined` (design 01-self-route-
+    // termination §2.5).
+    this.adaptationCursor.setLogSink(logger, this.runId);
+
     // Completion Loop processor — extracted from runner for dual-loop separation
     this.completionLoopProcessor = new CompletionLoopProcessor({
       closureManager: this.closureManager,
       boundaryHooks: this.boundaryHooks,
       closureAdapter: this.closureAdapter,
-      queryExecutor: this.queryExecutor,
+      getQueryExecutor: () => this.ensureQueryExecutor(),
       flowOrchestrator: this.flowOrchestrator,
       schemaManager: this.schemaManager,
       eventEmitter: this.eventEmitter,
@@ -289,6 +454,18 @@ export class AgentRunner {
         get: () => this.pendingRetryPrompt,
         set: (v: string | null) => {
           this.pendingRetryPrompt = v;
+        },
+      },
+      // Self-route cursor + pending-adaptation slot (design 01 §3.2). The
+      // cursor instance is the single one owned by `AgentRunner` so closure
+      // and non-closure repeats share state. `pendingAdaptation` is the
+      // same field consumed by the Flow Loop's prompt resolve site —
+      // single source of truth across both loops.
+      adaptationCursor: this.adaptationCursor,
+      pendingAdaptation: {
+        get: (stepId) => this.consumePendingAdaptation(stepId),
+        set: (stepId, adaptation) => {
+          this.pendingAdaptation = { stepId, adaptation };
         },
       },
       resolveSystemPromptForIteration: (ctx) =>
@@ -512,9 +689,22 @@ export class AgentRunner {
           const uvVars = this.buildUvVariables(iteration);
           ctx.verdictHandler.setUvVariables?.(uvVars);
           this.enrichWithChannel3Variables(uvVars, iteration, summaries);
+          // Consume pending self-route adaptation (design 01 §3.2). Set
+          // by `WorkflowRouter` on the previous iteration's
+          // `intent === "repeat"`; cleared after one consume so a stale
+          // value never leaks into a different stepId. Mismatched stepId
+          // is also cleared (defensive — forward-progress reset is the
+          // primary guard).
+          const adaptationOverride = this.consumePendingAdaptation(stepId);
           // deno-lint-ignore no-await-in-loop
           const flowPrompt = await this.closureManager
-            .resolveFlowStepPrompt(stepId, uvVars);
+            .resolveFlowStepPrompt(
+              stepId,
+              uvVars,
+              adaptationOverride !== undefined
+                ? { adaptation: adaptationOverride }
+                : undefined,
+            );
           if (flowPrompt) {
             prompt = flowPrompt.content;
             promptSource = flowPrompt.source;
@@ -574,7 +764,9 @@ export class AgentRunner {
 
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
-        const summary = await this.queryExecutor.executeQuery({
+        const queryExecutor = await this.ensureQueryExecutor();
+        // deno-lint-ignore no-await-in-loop
+        const summary = await queryExecutor.executeQuery({
           prompt,
           systemPrompt,
           plugins,
@@ -622,6 +814,19 @@ export class AgentRunner {
           summary,
           ctx,
         );
+
+        // Capture self-route adaptation for the next iteration (design 01
+        // §3.2). When `intent === "repeat"`, WorkflowRouter advanced the
+        // cursor and surfaces the resolved chain element here. The
+        // adaptation is keyed by `stepId` so a forward-progress reset on a
+        // different step (cursor.reset in router) plus the consume-time
+        // stepId match in `consumePendingAdaptation` jointly prevent leak.
+        if (routingResult?.repeatAdaptation !== undefined) {
+          this.pendingAdaptation = {
+            stepId,
+            adaptation: routingResult.repeatAdaptation,
+          };
+        }
 
         // Warn if structured output was expected but not returned
         if (
@@ -830,6 +1035,7 @@ export class AgentRunner {
       // Extract verdict from verdict handler for orchestrator routing
       const verdictValue = ctx.verdictHandler.getLastVerdict();
 
+      const sessionLogPath = ctx.logger.getLogPath();
       const result: AgentResult = {
         success,
         iterations: iteration,
@@ -847,6 +1053,7 @@ export class AgentRunner {
         }),
         ...(lastRateLimitInfo && { rateLimitInfo: lastRateLimitInfo }),
         ...(verdictValue && { verdict: verdictValue }),
+        ...(sessionLogPath && { logPath: sessionLogPath }),
       };
 
       // Emit completed event
@@ -872,9 +1079,15 @@ export class AgentRunner {
       const lastCostSummaryOnError = [...summaries].reverse().find((s) =>
         s.totalCostUsd !== undefined
       );
-      const lastRateLimitInfoOnError = [...summaries].reverse().find((s) =>
-        s.rateLimitInfo !== undefined
-      )?.rateLimitInfo;
+      // Prefer rateLimitInfo carried with AgentRateLimitError because the
+      // summary that caused the throw is not appended to `summaries`
+      // (executeQuery throws before the caller can push). Fall back to the
+      // most recent summary that observed an SDK rate_limit_event.
+      const lastRateLimitInfoOnError =
+        (error instanceof AgentRateLimitError && error.rateLimitInfo) ||
+        [...summaries].reverse().find((s) => s.rateLimitInfo !== undefined)
+          ?.rateLimitInfo;
+      const sessionLogPathOnError = ctx.logger.getLogPath();
       return {
         success: false,
         iterations: iteration,
@@ -893,6 +1106,7 @@ export class AgentRunner {
         ...(lastRateLimitInfoOnError && {
           rateLimitInfo: lastRateLimitInfoOnError,
         }),
+        ...(sessionLogPathOnError && { logPath: sessionLogPathOnError }),
       };
     } finally {
       // Close verbose logger if enabled
@@ -1060,16 +1274,41 @@ export class AgentRunner {
   }
 
   /**
+   * Consume the pending self-route adaptation for `stepId`.
+   *
+   * Returns the queued adaptation when it was set on the previous
+   * iteration's `intent === "repeat"` AND its stepId matches the current
+   * one. The slot is cleared on every call (consume-once), and a stepId
+   * mismatch also clears it so a stale entry can never silently apply to
+   * a different step. Returns `undefined` when nothing is queued.
+   *
+   * Forward-progress resets in `WorkflowRouter`/`CompletionLoopProcessor`
+   * are the primary guard against stale state; this stepId check is the
+   * structural backstop.
+   */
+  private consumePendingAdaptation(stepId: string): string | undefined {
+    const pending = this.pendingAdaptation;
+    if (pending === null) {
+      return undefined;
+    }
+    this.pendingAdaptation = null;
+    if (pending.stepId !== stepId) {
+      return undefined;
+    }
+    return pending.adaptation;
+  }
+
+  /**
    * Return the closure step definition when it declares a subprocess runner.
    * Returns null otherwise — in which case the caller falls back to the
    * existing prompt-based Completion Loop (non-interference with legacy steps).
    */
   private getSubprocessRunnerStep(
     stepId: string,
-  ): PromptStepDefinition | null {
+  ): Step | null {
     const registry = this.closureManager.stepsRegistry;
     const stepDef = registry?.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.runner?.command) {
       return null;
@@ -1090,7 +1329,7 @@ export class AgentRunner {
   private async runSubprocessClosureIteration(
     stepId: string,
     iteration: number,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
     summaries: IterationSummary[],
     ctx: RuntimeContext,
   ): Promise<{ done: boolean; reason: string; summary: IterationSummary }> {
@@ -1111,13 +1350,24 @@ export class AgentRunner {
       ...this.args,
     };
 
+    // T6.4 — Layer-4 inheritance plumbing for closure subprocesses.
+    // When the runner was booted with a runId (Boot kernel propagates
+    // it via RunnerOptions), forward `CLIMPT_PARENT_RUN_ID` so the
+    // spawned merge-pr can resolve the parent-written
+    // `tmp/boot-policy-<runId>.json` and freeze the inherited Policy
+    // (design 20 §E + Critique F15). Standalone runs (no runId) skip
+    // the overlay and the subprocess falls back to fresh defaults.
+    const subprocessEnv = this.runId !== undefined && this.runId.length > 0
+      ? { CLIMPT_PARENT_RUN_ID: this.runId }
+      : undefined;
+
     let subprocessResult;
     try {
       subprocessResult = await runSubprocessRunner(
         stepDef.runner,
         context,
         ctx.logger,
-        { commandRunner: this.commandRunner },
+        { commandRunner: this.commandRunner, env: subprocessEnv },
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

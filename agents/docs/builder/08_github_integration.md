@@ -213,33 +213,47 @@ sandbox 設定により、Agent プロセスからの外部ネットワークア
 
 #### tool-policy による bash パターンブロック
 
-以下のパターンが tool-policy
-でブロックされる（実装上は20の正規表現エントリ。下表では論理グループとして記載）:
+**方針**: Agent の bash から GitHub resource への **書き込み系 subcommand
+を網羅的にブロック** する。BoundaryHook / OutboxProcessor / Orchestrator
+のホストプロセス層が唯一の書き込み経路である
+（`agents/runner/github-read-tool.ts:8-9` の明文宣言）。 読み取り系
+(`view`/`list`/`diff`/`checks`) と workflow-continuation の create
+(`gh issue create`, `gh pr create`) は素通り。
 
-| #  | パターン                                                                                  |
-| -- | ----------------------------------------------------------------------------------------- |
-| 1  | `gh issue close`                                                                          |
-| 2  | `gh issue delete`                                                                         |
-| 3  | `gh issue transfer`                                                                       |
-| 4  | `gh issue reopen`                                                                         |
-| 5  | `gh issue edit --state closed`                                                            |
-| 6  | `gh pr close`                                                                             |
-| 7  | `gh pr merge`                                                                             |
-| 8  | `gh pr ready`                                                                             |
-| 9  | `gh release create`                                                                       |
-| 10 | `gh release edit`                                                                         |
-| 11 | `gh api`                                                                                  |
-| 12 | `curl`/`wget`/`python`/`python2`/`python3`/`node`/`ruby`/`perl`/`deno` + `api.github.com` |
-| 13 | JSON `state:closed` ペイロード                                                            |
+以下のパターン群が tool-policy でブロックされる （`agents/common/tool-policy.ts`
+の `BOUNDARY_BASH_PATTERNS`）:
+
+| グループ               | ブロック対象 subcommand (任意オプション込み)                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| Issue write            | `edit` / `close` / `delete` / `transfer` / `reopen` / `pin` / `unpin` / `lock` / `unlock` |
+| PR write               | `edit` / `close` / `merge` / `ready` / `review` / `reopen` / `lock`                       |
+| Release write          | `create` / `edit` / `delete` / `upload`                                                   |
+| Project write          | `edit` / `delete` / `close` / `copy` / `field-create` / `field-delete` / `item-*`         |
+| Label admin            | `create` / `edit` / `delete` / `clone`                                                    |
+| Repo write             | `create` / `delete` / `edit` / `archive` / `unarchive` / `rename` / `fork`                |
+| Direct API             | `gh api` (全 method)                                                                      |
+| Network tool bypass    | `curl` / `wget` / `python[23]?` / `node` / `ruby` / `perl` / `deno` + `api.github.com`    |
+| State mutation payload | JSON `"state":"closed"` ペイロード                                                        |
+
+> **注記**: `gh issue edit` は旧実装では `--state closed` 限定だった。これは
+> `--add-label` 等を素通りさせる bypass gap となっていた。BoundaryHook が label
+> 付与の唯一経路であるため、`gh issue edit` は全オプションでブロックする。 PR
+> 側も同様に `gh pr edit` を全オプションでブロックする。
 
 > **注記**: `gh issue comment` は意図的にブロック対象外である。コメント投稿は
 > Handoff Manager および OutboxProcessor がホストプロセスで実行するため、 Agent
 > からの直接実行は sandbox のネットワークブロックのみで防止される。
 
+> **注記**: `gh issue create` / `gh pr create` は workflow-continuation の
+> 非破壊操作として finalize 層が扱う設計のため、agent bash でも許可する （Agent
+> が直接 create を使うことは想定しないが、パターンで block しない）。
+
 > **注記**: Closure step を含む全 step kind で `blockBoundaryBash: true`
 > が設定されている。Closure step
-> でも有効な理由は、`defaultClosureAction: "label-only"`
-> のバイパスを防止するためである。
+> でも有効な理由は、`defaultClosureAction:
+> "label-only"` 等の BoundaryHook
+> policy をバイパスして Agent が 直接 `gh issue edit --add-label`
+> を叩く経路を封じるためである。
 
 ## 設定リファレンス
 

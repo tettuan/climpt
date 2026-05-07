@@ -11,22 +11,46 @@ import {
   resolvePhase,
   resolveTerminalOrBlocking,
 } from "./label-resolver.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 
 // =============================================================================
 // Test Fixture
 // =============================================================================
 
 function createTestConfig(): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 3,
+      agent: "iterator",
+    },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    revision: { type: "actionable" as const, priority: 1, agent: "iterator" },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      directory: "iterator",
+      outputPhase: "review",
+      fallbackPhase: "blocked",
+    },
+    reviewer: {
+      role: "validator" as const,
+      directory: "reviewer",
+      outputPhases: {
+        approved: "complete",
+        rejected: "revision",
+      },
+      fallbackPhase: "blocked",
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 3, agent: "iterator" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      revision: { type: "actionable", priority: 1, agent: "iterator" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       review: "review",
@@ -35,23 +59,8 @@ function createTestConfig(): WorkflowConfig {
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        directory: "iterator",
-        outputPhase: "review",
-        fallbackPhase: "blocked",
-      },
-      reviewer: {
-        role: "validator",
-        directory: "reviewer",
-        outputPhases: {
-          approved: "complete",
-          rejected: "revision",
-        },
-        fallbackPhase: "blocked",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 5,
       cycleDelayMs: 5000,

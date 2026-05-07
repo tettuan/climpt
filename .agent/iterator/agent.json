@@ -3,7 +3,7 @@
   "version": "1.12.0",
   "name": "iterator",
   "displayName": "Iterator Agent",
-  "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",
+  "description": "Implements kind:impl GitHub Issues end-to-end. Gates closure on commit binding (RC2/RC3), kind-boundary scope (RC6), and Acceptance Criteria coverage (RC5) via a 6-step precheck chain (commit-list → commit-verify → kind-read → kind-scope → ac-extract → ac-map → ac-verify) before closure.issue.",
   "parameters": {
     "issue": {
       "type": "number",
@@ -52,26 +52,11 @@
         "maxIterations": 500
       }
     },
-    "boundaries": {
-      "allowedTools": [
-        "Skill",
-        "Read",
-        "Write",
-        "Edit",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task",
-        "TodoWrite"
-      ],
-      "permissionMode": "acceptEdits"
-    },
     "integrations": {
       "github": {
         "enabled": true,
         "labels": {
           "requirements": "docs",
-          "inProgress": "in-progress",
           "blocked": "need clearance",
           "completion": {
             "add": ["done"],

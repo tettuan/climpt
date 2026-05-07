@@ -6,16 +6,22 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "merge"
+    "count:iteration": {
+      "initial": "merge",
+      "continuation": "merge"
+    }
   },
   "steps": {
     "merge": {
       "stepId": "merge",
       "name": "PR Merge Closure",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "merge",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "merge",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "runner": {
