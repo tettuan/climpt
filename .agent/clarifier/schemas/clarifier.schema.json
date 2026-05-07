@@ -122,6 +122,7 @@
       "next_action",
       "verdict",
       "rationale",
+      "final_summary",
       "anchor_signature"
     ],
     "properties": {
